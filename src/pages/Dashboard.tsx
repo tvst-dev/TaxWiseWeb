@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, TrendingUp, TrendingDown, Calculator, Settings, LogOut, Zap } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Calculator, Settings, LogOut, Zap, CreditCard } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { EntryForm } from '@/components/EntryForm';
@@ -32,23 +32,76 @@ interface TaxCalculation {
   estimated_tax_owed: number;
 }
 
+interface Subscription {
+  tier: string;
+  status: string;
+  is_legacy_user: boolean | null;
+  current_period_end: string | null;
+}
+
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [taxCalculations, setTaxCalculations] = useState<TaxCalculation[]>([]);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [showPreferences, setShowPreferences] = useState(false);
 
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
   useEffect(() => {
-    fetchEntries();
-    fetchTaxCalculations();
-  }, []);
+    if (user) {
+      checkSubscriptionAccess();
+      fetchEntries();
+      fetchTaxCalculations();
+    }
+  }, [user]);
+
+  const checkSubscriptionAccess = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('api_subscriptions')
+        .select('tier, status, is_legacy_user, current_period_end')
+        .single();
+
+      if (error) throw error;
+      setSubscription(data);
+
+      // Check access control
+      if (data.is_legacy_user) {
+        // Legacy users have access
+        return;
+      }
+
+      if (data.status !== 'active') {
+        toast({
+          title: 'Subscription Required',
+          description: 'Your subscription has expired. Please renew to continue.',
+          variant: 'destructive',
+        });
+        navigate('/pricing');
+        return;
+      }
+
+      if (data.current_period_end && new Date(data.current_period_end) < new Date()) {
+        toast({
+          title: 'Subscription Expired',
+          description: 'Your subscription has expired. Please renew to continue.',
+          variant: 'destructive',
+        });
+        navigate('/pricing');
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking subscription:', error);
+      toast({
+        title: 'Access Error',
+        description: 'Unable to verify subscription. Please contact support.',
+        variant: 'destructive',
+      });
+      navigate('/auth');
+    }
+  };
 
   const fetchEntries = async () => {
     try {
@@ -62,7 +115,7 @@ export default function Dashboard() {
         ...entry,
         type: entry.type as 'earning' | 'deduction'
       })));
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error',
         description: 'Failed to fetch entries',
@@ -82,7 +135,7 @@ export default function Dashboard() {
 
       if (error) throw error;
       setTaxCalculations(data || []);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error',
         description: 'Failed to fetch tax calculations',
@@ -98,6 +151,10 @@ export default function Dashboard() {
       description: 'You have been successfully signed out.',
     });
   };
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
 
   const currentYear = new Date().getFullYear();
   const currentYearEntries = entries.filter(entry => new Date(entry.date).getFullYear() === currentYear);
@@ -128,6 +185,10 @@ export default function Dashboard() {
             <p className="text-muted-foreground">Nigeria Tax Management System</p>
           </div>
           <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={() => navigate('/subscription')}>
+              <CreditCard className="h-5 w-5 mr-2" />
+              Subscription
+            </Button>
             <Button variant="default" onClick={() => navigate('/pricing')}>
               <Zap className="h-5 w-5 mr-2" />
               Upgrade
@@ -202,16 +263,16 @@ export default function Dashboard() {
                 Add Entry
               </Button>
             </div>
-            
-            <EntryList 
-              entries={entries} 
+
+            <EntryList
+              entries={entries}
               onEntriesChange={fetchEntries}
             />
           </div>
 
           {/* Tax Summary */}
           <div>
-            <TaxSummary 
+            <TaxSummary
               entries={currentYearEntries}
               taxCalculations={taxCalculations}
               onCalculationsChange={fetchTaxCalculations}

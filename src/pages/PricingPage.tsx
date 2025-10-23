@@ -101,7 +101,7 @@ export default function PricingPage() {
   const plans = [
     {
       name: 'Individuals',
-      tier: 'individuals',
+      tier: 'individual',
       price: '₦1,499.90',
       period: 'per month',
       icon: Zap,
@@ -122,7 +122,7 @@ export default function PricingPage() {
     },
     {
       name: 'Small Businesses',
-      tier: 'small_businesses',
+      tier: 'small_business',
       price: '₦24,999.90',
       period: 'per month',
       icon: Rocket,
@@ -147,8 +147,8 @@ export default function PricingPage() {
     },
     {
       name: 'Large Corporations',
-      tier: 'large_corporations',
-      price: '₦4,999.90',
+      tier: 'large_corporation',
+      price: '₦49,999.90',
       period: 'per month',
       icon: Building2,
       description: 'For large organizations',
@@ -177,8 +177,8 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           onClick={() => navigate('/dashboard')}
           className="mb-6"
         >
@@ -189,7 +189,7 @@ export default function PricingPage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">Choose Your Plan</h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Upgrade to unlock powerful features for your business including API access, 
+            Upgrade to unlock powerful features for your business including API access,
             advanced analytics, and team collaboration tools
           </p>
         </div>
@@ -198,10 +198,10 @@ export default function PricingPage() {
           {plans.map((plan) => {
             const Icon = plan.icon;
             const isCurrentPlan = subscription?.tier === plan.tier;
-            
+
             return (
-              <Card 
-                key={plan.tier} 
+              <Card
+                key={plan.tier}
                 className={`relative ${plan.popular ? 'border-primary shadow-lg' : ''}`}
               >
                 {plan.popular && (
@@ -209,7 +209,7 @@ export default function PricingPage() {
                     Most Popular
                   </Badge>
                 )}
-                
+
                 <CardHeader>
                   <div className="flex items-center justify-between mb-4">
                     <Icon className="h-8 w-8 text-primary" />
@@ -272,7 +272,7 @@ export default function PricingPage() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground mb-4">
-                Contact our sales team to discuss volume discounts, custom integrations, 
+                Contact our sales team to discuss volume discounts, custom integrations,
                 and dedicated support options.
               </p>
               <Button variant="outline" size="lg">

@@ -14,20 +14,20 @@ export default function AuthPage() {
   const { user, signIn, signUp, loading } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
-  
+
   // Sign up state
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   const [userType, setUserType] = useState<'individual' | 'startup' | 'big_firm'>('individual');
-  const [selectedPlan, setSelectedPlan] = useState<'individuals' | 'small_businesses' | 'large_corporations'>('individuals');
+  const [selectedPlan, setSelectedPlan] = useState<'individual' | 'small_business' | 'large_corporation'>('individual');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
-  
+
   // Sign in state
   const [signInEmail, setSignInEmail] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
-  
+
   // Forgot password state
   const [resetEmail, setResetEmail] = useState('');
 
@@ -106,27 +106,27 @@ export default function AuthPage() {
   const plans = [
     {
       name: 'Individuals',
-      tier: 'individuals',
+      tier: 'individual',
       price: '₦1,499.90',
       description: 'Perfect for individuals',
     },
     {
       name: 'Small Businesses',
-      tier: 'small_businesses',
+      tier: 'small_business',
       price: '₦24,999.90',
       description: 'For growing businesses',
     },
     {
       name: 'Large Corporations',
-      tier: 'large_corporations',
-      price: '₦4,999.90',
+      tier: 'large_corporation',
+      price: '₦49,999.90',
       description: 'For large organizations',
     },
   ];
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!signInEmail || !signInPassword) {
       toast({
         title: 'Error',
@@ -149,7 +149,7 @@ export default function AuthPage() {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!resetEmail) {
       toast({
         title: 'Error',
@@ -209,7 +209,7 @@ export default function AuthPage() {
                   autoComplete="email"
                 />
               </div>
-              
+
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? 'Sending...' : 'Send Reset Link'}
               </Button>
@@ -236,7 +236,7 @@ export default function AuthPage() {
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="signUpEmail">Email</Label>
                 <Input
@@ -248,7 +248,7 @@ export default function AuthPage() {
                   autoComplete="email"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="signUpPassword">Password</Label>
                 <Input
@@ -260,10 +260,10 @@ export default function AuthPage() {
                   autoComplete="new-password"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label>Choose Your Plan</Label>
-                <RadioGroup value={selectedPlan} onValueChange={(value: 'individuals' | 'small_businesses' | 'large_corporations') => setSelectedPlan(value)}>
+                <RadioGroup value={selectedPlan} onValueChange={(value: 'individual' | 'small_business' | 'large_corporation') => setSelectedPlan(value)}>
                   {plans.map((plan) => (
                     <div key={plan.tier} className="flex items-center space-x-2">
                       <RadioGroupItem value={plan.tier} id={plan.tier} />
@@ -310,7 +310,7 @@ export default function AuthPage() {
                   autoComplete="email"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="signInPassword">Password</Label>
                 <Input
@@ -322,11 +322,11 @@ export default function AuthPage() {
                   autoComplete="current-password"
                 />
               </div>
-              
+
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? 'Signing In...' : 'Sign In'}
               </Button>
-              
+
               <Button
                 variant="link"
                 onClick={() => setIsForgotPassword(true)}
@@ -337,7 +337,7 @@ export default function AuthPage() {
               </Button>
             </form>
           )}
-          
+
           <div className="mt-4 text-center">
             <Button
               variant="ghost"

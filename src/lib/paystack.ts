@@ -109,6 +109,10 @@ const handlePaymentSuccess = async (response: PaystackResponse) => {
     const verifyData = await verifyResponse.json();
 
     if (verifyData.status && verifyData.data.status === 'success') {
+      const paymentAmount = verifyData.data.amount / 100; // Convert from kobo to naira
+      const customerCode = verifyData.data.customer.customer_code;
+      const subscriptionCode = verifyData.data.subscription?.subscription_code;
+
       if (isSignUp) {
         // For signup, we need to get the user ID from the email since user might not be logged in yet
         // The user should be created by now, so we can find them by email
@@ -126,11 +130,28 @@ const handlePaymentSuccess = async (response: PaystackResponse) => {
           return;
         }
 
+        // Calculate billing period (1 month from now)
+        const currentPeriodStart = new Date();
+        const currentPeriodEnd = new Date();
+        currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+
         // Update subscription for the new user
-        const { error } = await supabase
+        const { data: subscriptionData, error } = await supabase
           .from('api_subscriptions')
-          .update({ tier: plan })
-          .eq('user_id', userData.user.id);
+          .update({
+            tier: plan,
+            status: 'active',
+            amount: paymentAmount,
+            currency: 'NGN',
+            paystack_customer_code: customerCode,
+            paystack_subscription_code: subscriptionCode,
+            current_period_start: currentPeriodStart.toISOString(),
+            current_period_end: currentPeriodEnd.toISOString(),
+            is_legacy_user: false
+          })
+          .eq('user_id', userData.user.id)
+          .select()
+          .single();
 
         if (error) {
           console.error('Error updating subscription for new user:', error);
@@ -141,17 +162,41 @@ const handlePaymentSuccess = async (response: PaystackResponse) => {
               variant: 'destructive',
             });
           }
-        } else {
-          console.log('New user subscription set up successfully');
-          if (window.showToast) {
-            window.showToast({
-              title: 'Welcome to TaxWise!',
-              description: `Your ${plan} plan is now active.`,
-            });
-          }
-          // Redirect to dashboard
-          window.location.href = '/dashboard';
+          return;
         }
+
+        // Insert payment transaction record
+        const { error: transactionError } = await supabase
+          .from('payment_transactions')
+          .insert({
+            user_id: userData.user.id,
+            subscription_id: subscriptionData.id,
+            paystack_reference: reference,
+            amount: paymentAmount,
+            currency: 'NGN',
+            status: 'success',
+            plan_type: plan,
+            paid_at: new Date().toISOString(),
+            metadata: {
+              customer_code: customerCode,
+              subscription_code: subscriptionCode
+            }
+          });
+
+        if (transactionError) {
+          console.error('Error creating payment transaction:', transactionError);
+          // Don't fail the whole process for transaction logging error
+        }
+
+        console.log('New user subscription set up successfully');
+        if (window.showToast) {
+          window.showToast({
+            title: 'Welcome to TaxWise!',
+            description: `Your ${plan} plan is now active.`,
+          });
+        }
+        // Redirect to dashboard
+        window.location.href = '/dashboard';
       } else {
         // Regular upgrade flow
         if (!userId) {
@@ -166,11 +211,28 @@ const handlePaymentSuccess = async (response: PaystackResponse) => {
           return;
         }
 
+        // Calculate billing period (1 month from now)
+        const currentPeriodStart = new Date();
+        const currentPeriodEnd = new Date();
+        currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+
         // Update subscription in Supabase
-        const { error } = await supabase
+        const { data: subscriptionData, error } = await supabase
           .from('api_subscriptions')
-          .update({ tier: plan })
-          .eq('user_id', userId);
+          .update({
+            tier: plan,
+            status: 'active',
+            amount: paymentAmount,
+            currency: 'NGN',
+            paystack_customer_code: customerCode,
+            paystack_subscription_code: subscriptionCode,
+            current_period_start: currentPeriodStart.toISOString(),
+            current_period_end: currentPeriodEnd.toISOString(),
+            is_legacy_user: false
+          })
+          .eq('user_id', userId)
+          .select()
+          .single();
 
         if (error) {
           console.error('Error updating subscription:', error);
@@ -182,18 +244,42 @@ const handlePaymentSuccess = async (response: PaystackResponse) => {
               variant: 'destructive',
             });
           }
-        } else {
-          console.log('Subscription updated successfully');
-          // Show success toast if available
-          if (window.showToast) {
-            window.showToast({
-              title: 'Upgrade Successful!',
-              description: `Your plan has been upgraded to ${plan}.`,
-            });
-          }
-          // Reload to reflect changes
-          window.location.reload();
+          return;
         }
+
+        // Insert payment transaction record
+        const { error: transactionError } = await supabase
+          .from('payment_transactions')
+          .insert({
+            user_id: userId,
+            subscription_id: subscriptionData.id,
+            paystack_reference: reference,
+            amount: paymentAmount,
+            currency: 'NGN',
+            status: 'success',
+            plan_type: plan,
+            paid_at: new Date().toISOString(),
+            metadata: {
+              customer_code: customerCode,
+              subscription_code: subscriptionCode
+            }
+          });
+
+        if (transactionError) {
+          console.error('Error creating payment transaction:', transactionError);
+          // Don't fail the whole process for transaction logging error
+        }
+
+        console.log('Subscription updated successfully');
+        // Show success toast if available
+        if (window.showToast) {
+          window.showToast({
+            title: 'Upgrade Successful!',
+            description: `Your plan has been upgraded to ${plan}.`,
+          });
+        }
+        // Reload to reflect changes
+        window.location.reload();
       }
     } else {
       console.error('Payment verification failed');
