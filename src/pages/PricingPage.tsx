@@ -169,7 +169,7 @@ export default function PricingPage() {
         'Full API access',
         'Custom rate limits',
       ],
-      cta: 'Contact Sales',
+      cta: 'Upgrade to Large Corporations',
       disabled: false,
     },
   ];
