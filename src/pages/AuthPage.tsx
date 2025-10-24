@@ -279,19 +279,7 @@ export default function AuthPage() {
                 </RadioGroup>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="userType">Account Type</Label>
-                <Select value={userType} onValueChange={(value: 'individual' | 'startup' | 'big_firm') => setUserType(value)}>
-                  <SelectTrigger id="userType">
-                    <SelectValue placeholder="Select account type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="individual">Individual</SelectItem>
-                    <SelectItem value="startup">Startup/Small Business</SelectItem>
-                    <SelectItem value="big_firm">Large Company</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+
 
               <Button type="submit" className="w-full" disabled={loading || paymentProcessing}>
                 {loading || paymentProcessing ? 'Processing...' : `Create Account & Pay ${plans.find(p => p.tier === selectedPlan)?.price}/month`}
