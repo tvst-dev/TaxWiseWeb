@@ -4,5 +4,5 @@
 - [x] Remove account type selection from signup in src/pages/AuthPage.tsx
 - [x] Replace all koeta.com with koeta.io in src/pages/PrivacyPolicy.tsx
 - [x] Replace all koeta.com with koeta.io in src/pages/TermsOfService.tsx
-- [ ] Commit changes to new branch blackboxai/corrections
-- [ ] Push to GitHub and open PR
+- [x] Commit changes to new branch blackboxai/corrections
+- [x] Push to GitHub and open PR
