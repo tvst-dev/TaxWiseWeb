@@ -223,7 +223,7 @@ const TermsOfService = () => {
               <li>Withdraw consent</li>
             </ul>
             <p className="mb-4">
-              To exercise these rights, contact: <a href="mailto:privacy@koeta.com" className="text-primary">privacy@koeta.com</a>
+              To exercise these rights, contact: <a href="mailto:privacy@koeta.io" className="text-primary">privacy@koeta.io</a>
             </p>
             <p className="mb-4">We respond within 30 days as required by NDPR.</p>
 
@@ -283,7 +283,7 @@ const TermsOfService = () => {
               <li>Money Laundering (Prohibition) Act 2011</li>
               <li>Federal Competition and Consumer Protection Act 2018</li>
             </ul>
-            <p className="mb-4">Koeta's Data Protection Officer (DPO): <a href="mailto:dpo@koeta.com" className="text-primary">dpo@koeta.com</a></p>
+            <p className="mb-4">Koeta's Data Protection Officer (DPO): <a href="mailto:dpo@koeta.io" className="text-primary">dpo@koeta.io</a></p>
             <p className="mb-4">Users are responsible for accurate tax filing and lawful financial activity.</p>
           </section>
 
@@ -292,7 +292,7 @@ const TermsOfService = () => {
             <p className="mb-4"><strong>Free Tier:</strong> Basic income and expense tracking</p>
             <p className="mb-4"><strong>Premium Features:</strong> Optional paid subscriptions</p>
             <p className="mb-4"><strong>Taxes:</strong> Fees exclude VAT and other taxes</p>
-            <p className="mb-4"><strong>Refunds:</strong> Case-by-case basis via <a href="mailto:support@koeta.com" className="text-primary">support@koeta.com</a></p>
+            <p className="mb-4"><strong>Refunds:</strong> Case-by-case basis via <a href="mailto:support@koeta.io" className="text-primary">support@koeta.io</a></p>
           </section>
 
           <section className="mb-8">
@@ -329,7 +329,7 @@ const TermsOfService = () => {
             <p className="mb-4">You may terminate your account anytime via:</p>
             <ul className="list-disc pl-6 mb-4">
               <li>In-app deletion, or</li>
-              <li>Email to <a href="mailto:support@koeta.com" className="text-primary">support@koeta.com</a></li>
+              <li>Email to <a href="mailto:support@koeta.io" className="text-primary">support@koeta.io</a></li>
             </ul>
             <p className="mb-4">Upon termination, data is retained per policy (90 days recovery, 7 years tax data).</p>
             <p className="mb-4">Koeta may also terminate accounts for violations, fraud, or security risks.</p>
@@ -349,9 +349,9 @@ const TermsOfService = () => {
             <h3 className="text-xl font-semibold mb-4">15. CONTACT INFORMATION</h3>
             <p className="mb-4"><strong>Company:</strong> Koeta Limited</p>
             <p className="mb-4"><strong>Location:</strong> [Abuja, Nigeria]</p>
-            <p className="mb-4"><strong>Website:</strong> <a href="https://www.koeta.com" className="text-primary">www.koeta.com</a></p>
-            <p className="mb-4"><strong>Email:</strong> <a href="mailto:support@koeta.com" className="text-primary">support@koeta.com</a></p>
-            <p className="mb-4"><strong>Data Protection Officer (DPO):</strong> <a href="mailto:dpo@koeta.com" className="text-primary">dpo@koeta.com</a></p>
+            <p className="mb-4"><strong>Website:</strong> <a href="https://www.koeta.io" className="text-primary">www.koeta.io</a></p>
+            <p className="mb-4"><strong>Email:</strong> <a href="mailto:support@koeta.io" className="text-primary">support@koeta.io</a></p>
+            <p className="mb-4"><strong>Data Protection Officer (DPO):</strong> <a href="mailto:dpo@koeta.io" className="text-primary">dpo@koeta.io</a></p>
             <p className="mb-4"><strong>Phone:</strong> +234 705 476 7340</p>
           </section>
 
@@ -376,7 +376,7 @@ const TermsOfService = () => {
               <li>✓ You understand that TaxWise does not provide professional tax advice</li>
               <li>✓ You will comply with all applicable Nigerian laws</li>
             </ul>
-            <p className="mb-4">For questions, contact: <a href="mailto:legal@koeta.com" className="text-primary">legal@koeta.com</a></p>
+            <p className="mb-4">For questions, contact: <a href="mailto:legal@koeta.io" className="text-primary">legal@koeta.io</a></p>
             <p className="mb-4"><strong>© 2025 Koeta Limited. All Rights Reserved.</strong></p>
             <p className="mb-4"><strong>TaxWise is a registered trademark of Koeta Limited.</strong></p>
           </section>
