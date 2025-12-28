@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Loader2, CheckCircle, ArrowLeft, Building2, User } from 'lucide-react';
 
 export default function AuthPage() {
   const { user, signIn, signUp, loading: authLoading } = useAuth();
@@ -22,13 +22,13 @@ export default function AuthPage() {
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
   const [localProcessing, setLocalProcessing] = useState(false);
 
-  // Standard Form Fields
+  // Form Fields
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
-  // Business Specific Fields
+  // Business Fields
   const [companyName, setCompanyName] = useState('');
   const [companySize, setCompanySize] = useState('');
   const [jobTitle, setJobTitle] = useState('');
@@ -37,47 +37,41 @@ export default function AuthPage() {
   // Plan Selection
   const [selectedPlan, setSelectedPlan] = useState<'individual' | 'small_business' | 'large_corporation'>('individual');
 
-  // Handle Redirection if already logged in
   useEffect(() => {
     if (user) {
       navigate('/dashboard', { replace: true });
     }
   }, [user, navigate]);
 
-  // --- PLANS CONFIGURATION ---
   const plans = [
     {
       id: 'individual',
-      name: 'Individuals',
+      name: 'Individual',
       price: '₦1,499.90',
       rawPrice: 149990,
-      description: 'Perfect for individuals',
-      color: 'bg-blue-50 border-blue-200 dark:bg-blue-950/30'
+      description: 'Perfect for freelancers',
+      icon: <User className="h-4 w-4" />
     },
     {
       id: 'small_business',
-      name: 'Small Businesses',
+      name: 'Small Business',
       price: '₦24,999.90',
       rawPrice: 2499990,
-      description: 'For growing businesses',
-      color: 'bg-green-50 border-green-200 dark:bg-green-950/30'
+      description: 'For growing teams',
+      icon: <Building2 className="h-4 w-4" />
     },
     {
       id: 'large_corporation',
-      name: 'Large Corporations',
+      name: 'Large Corp',
       price: '₦49,999.90',
       rawPrice: 4999990,
-      description: 'For large organizations',
-      color: 'bg-orange-50 border-orange-200 dark:bg-orange-950/30'
+      description: 'For organizations',
+      icon: <Building2 className="h-4 w-4" />
     },
   ];
 
-  // --- HANDLERS ---
-
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // 1. Validation
     if (!firstName || !lastName || !email || !password) {
       toast({ title: 'Error', description: 'Please fill all basic fields', variant: 'destructive' });
       return;
@@ -89,7 +83,7 @@ export default function AuthPage() {
         return;
       }
       if (!isCompanyRep) {
-        toast({ title: 'Error', description: 'You must confirm you are a company representative', variant: 'destructive' });
+        toast({ title: 'Error', description: 'Please confirm you represent the company', variant: 'destructive' });
         return;
       }
     }
@@ -97,7 +91,6 @@ export default function AuthPage() {
     setLocalProcessing(true);
 
     try {
-      // 2. Sign Up
       const { data: authData, error: signUpError } = await signUp(email, password, {
         first_name: firstName,
         last_name: lastName,
@@ -107,7 +100,6 @@ export default function AuthPage() {
       if (signUpError) throw signUpError;
 
       if (authData.user) {
-        // 3. Prepare Profile Data
         const profileUpdates: any = {
           user_id: authData.user.id,
           full_name: `${firstName} ${lastName}`,
@@ -115,7 +107,6 @@ export default function AuthPage() {
           updated_at: new Date().toISOString()
         };
 
-        // Add Business Fields if applicable
         if (selectedPlan !== 'individual') {
           profileUpdates.company_name = companyName;
           profileUpdates.company_size = companySize;
@@ -123,13 +114,9 @@ export default function AuthPage() {
           profileUpdates.is_company_rep = isCompanyRep;
         }
 
-        // 4. Create Profile Entry
         await supabase.from('profiles').upsert(profileUpdates);
-
-        // 5. Trigger Payment
         await handlePayment(authData.user.id, email);
       }
-
     } catch (error: any) {
       console.error(error);
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -143,17 +130,13 @@ export default function AuthPage() {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        toast({ 
-          title: "Account Created", 
-          description: "Please check your email to confirm your account, then log in to complete payment." 
-        });
+        toast({ title: "Account Created", description: "Please check your email to confirm account." });
         return;
       }
 
       const plan = plans.find(p => p.id === selectedPlan);
       if (!plan) throw new Error("Invalid plan");
 
-      // Call Payment Edge Function
       const { data, error } = await supabase.functions.invoke('initialize-payment', {
         body: {
           email: userEmail,
@@ -165,8 +148,6 @@ export default function AuthPage() {
       });
 
       if (error || !data.status) throw new Error("Payment initialization failed");
-
-      // Redirect to Paystack
       window.location.href = data.data.authorization_url;
 
     } catch (e) {
@@ -174,7 +155,6 @@ export default function AuthPage() {
     }
   };
 
-  // ... (handleSignIn and handleForgotPassword remain the same) ...
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
@@ -207,9 +187,7 @@ export default function AuthPage() {
             <CardDescription>We've sent a password reset link to {email}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" className="w-full" onClick={() => setForgotPasswordSuccess(false)}>
-              Back to Login
-            </Button>
+            <Button variant="outline" className="w-full" onClick={() => setForgotPasswordSuccess(false)}>Back to Login</Button>
           </CardContent>
         </Card>
       </div>
@@ -243,19 +221,21 @@ export default function AuthPage() {
             </form>
           ) : isSignUp ? (
             <form onSubmit={handleSignUp} className="space-y-4">
-              {/* Plan Selection */}
+              {/* Plan Selection Grid */}
               <div className="space-y-3 pt-2">
-                <Label>Choose Your Plan</Label>
-                <RadioGroup value={selectedPlan} onValueChange={(v: any) => setSelectedPlan(v)}>
+                <Label>Select Account Type</Label>
+                <RadioGroup value={selectedPlan} onValueChange={(v: any) => setSelectedPlan(v)} className="grid grid-cols-1 gap-2">
                   {plans.map((plan) => (
-                    <div key={plan.id} className={`flex items-start space-x-3 rounded-md border p-3 cursor-pointer transition-all ${plan.color} ${selectedPlan === plan.id ? 'ring-2 ring-primary border-transparent' : 'hover:bg-gray-50'}`}>
-                      <RadioGroupItem value={plan.id} id={plan.id} className="mt-1" />
-                      <div className="flex-1 cursor-pointer" onClick={() => setSelectedPlan(plan.id as any)}>
+                    <div key={plan.id} className={`relative flex items-center space-x-3 rounded-lg border p-3 cursor-pointer transition-all hover:bg-muted/50 ${selectedPlan === plan.id ? 'ring-2 ring-primary border-transparent bg-primary/5' : ''}`}>
+                      <RadioGroupItem value={plan.id} id={plan.id} className="absolute left-3 top-3.5" />
+                      <div className="flex-1 pl-8 cursor-pointer" onClick={() => setSelectedPlan(plan.id as any)}>
                         <div className="flex justify-between items-center w-full">
-                          <span className="font-semibold text-sm">{plan.name}</span>
+                          <span className="font-semibold text-sm flex items-center gap-2">
+                            {plan.icon} {plan.name}
+                          </span>
                           <span className="font-bold text-sm text-primary">{plan.price}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">{plan.description}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{plan.description}</p>
                       </div>
                     </div>
                   ))}
@@ -266,17 +246,17 @@ export default function AuthPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>First Name</Label>
-                  <Input value={firstName} onChange={e => setFirstName(e.target.value)} required />
+                  <Input value={firstName} onChange={e => setFirstName(e.target.value)} required placeholder="John" />
                 </div>
                 <div className="space-y-2">
                   <Label>Last Name</Label>
-                  <Input value={lastName} onChange={e => setLastName(e.target.value)} required />
+                  <Input value={lastName} onChange={e => setLastName(e.target.value)} required placeholder="Doe" />
                 </div>
               </div>
               
               <div className="space-y-2">
                 <Label>Email</Label>
-                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="john@example.com" />
               </div>
               
               <div className="space-y-2">
@@ -284,11 +264,9 @@ export default function AuthPage() {
                 <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
               </div>
 
-              {/* DYNAMIC BUSINESS FIELDS */}
+              {/* DYNAMIC BUSINESS FIELDS (Seamlessly Integrated) */}
               {selectedPlan !== 'individual' && (
-                <div className="space-y-4 pt-4 border-t mt-4 bg-gray-50 p-4 rounded-md">
-                  <h4 className="font-semibold text-sm">Company Details</h4>
-                  
+                <div className="space-y-4 pt-4 border-t mt-4 animate-in fade-in slide-in-from-top-4 duration-300">
                   <div className="space-y-2">
                     <Label>Company Name</Label>
                     <Input placeholder="e.g. Robust Tech Ltd" value={companyName} onChange={e => setCompanyName(e.target.value)} required />
@@ -302,7 +280,7 @@ export default function AuthPage() {
                     <div className="space-y-2">
                       <Label>Employees</Label>
                       <Select value={companySize} onValueChange={setCompanySize} required>
-                        <SelectTrigger className="bg-white">
+                        <SelectTrigger>
                           <SelectValue placeholder="Size" />
                         </SelectTrigger>
                         <SelectContent>
@@ -317,14 +295,14 @@ export default function AuthPage() {
 
                   <div className="flex items-start space-x-2 pt-2">
                     <Checkbox id="rep" checked={isCompanyRep} onCheckedChange={(c) => setIsCompanyRep(c as boolean)} required />
-                    <Label htmlFor="rep" className="text-xs leading-tight font-normal">
+                    <Label htmlFor="rep" className="text-xs leading-tight font-normal text-muted-foreground cursor-pointer">
                       I confirm I am authorized to create this account on behalf of the company.
                     </Label>
                   </div>
                 </div>
               )}
 
-              <Button className="w-full mt-4" type="submit" disabled={localProcessing || authLoading}>
+              <Button className="w-full mt-4 h-11 text-base" type="submit" disabled={localProcessing || authLoading}>
                 {localProcessing || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 
                  `Sign Up & Pay ${plans.find(p => p.id === selectedPlan)?.price}`}
               </Button>
@@ -343,14 +321,14 @@ export default function AuthPage() {
                 </div>
                 <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
               </div>
-              <Button className="w-full" type="submit" disabled={localProcessing || authLoading}>
+              <Button className="w-full h-11 text-base" type="submit" disabled={localProcessing || authLoading}>
                 {localProcessing || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Sign In'}
               </Button>
             </form>
           )}
 
           {!isForgotPassword && (
-            <div className="mt-6 text-center text-sm">
+            <div className="mt-6 text-center text-sm text-muted-foreground">
               {isSignUp ? (
                 <p>Already have an account? <span className="text-primary font-bold cursor-pointer hover:underline" onClick={() => setIsSignUp(false)}>Sign In</span></p>
               ) : (
