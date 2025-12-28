@@ -269,7 +269,7 @@ export default function AuthPage() {
                 <div className="space-y-4 pt-4 border-t mt-4 animate-in fade-in slide-in-from-top-4 duration-300">
                   <div className="space-y-2">
                     <Label>Company Name</Label>
-                    <Input placeholder="e.g. Robust Tech Ltd" value={companyName} onChange={e => setCompanyName(e.target.value)} required />
+                    <Input placeholder="e.g. My Company Ltd" value={companyName} onChange={e => setCompanyName(e.target.value)} required />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
