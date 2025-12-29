@@ -24,18 +24,41 @@ serve(async (req: Request) => {
     if (authError || !user) throw new Error('Unauthorized')
 
     // 2. Parse Body
-    const { email, amount, plan, firstName, lastName, platform } = await req.json()
+    const { 
+      email, amount, plan, firstName, lastName, platform, 
+      is_upgrade, company_name, company_size, job_title 
+    } = await req.json()
     
-    // 3. Determine Callback URL
-    // Web: Redirect to your React App callback page
-    // Mobile: Redirect to Deep Link (taxwise://) OR standard close for WebView detection
-    let callbackUrl = "https://standard.paystack.co/close"; 
-    
-    // If you are using the WebView "cancel detection" logic we built, standard close is best.
-    // If you want explicit deep linking:
-    // if (platform === 'mobile') callbackUrl = "taxwise://payment-callback";
+    // 3. Update Profile if Upgrading
+    if (is_upgrade === true && company_name) {
+      const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+      
+      await supabaseAdmin.from('profiles').update({
+        company_name,
+        company_size,
+        job_title,
+        // We set account_type to the new plan immediately (or you could use a pending column)
+        account_type: plan === 'small_business' ? 'startup' : (plan === 'large_corporation' ? 'corporate' : 'individual'),
+        onboarding_status: 'pending_payment' // Lock them out until paid
+      }).eq('user_id', user.id)
+    }
 
-    // 4. Call Paystack
+    // 4. Determine Callback URL
+    // This allows Deep Linking on Mobile and Redirects on Web
+    let callbackUrl = "https://standard.paystack.co/close"; // Fallback
+    
+    if (platform === 'mobile') {
+      callbackUrl = "taxwise://payment-callback";
+    } else if (platform === 'web') {
+      // Replace this with your actual production Web URL
+      // If local testing, use http://localhost:5173/payment-callback
+      callbackUrl = "https://taxwise-web.vercel.app/payment-callback"; 
+    }
+
+    // 5. Call Paystack
     const secretKey = Deno.env.get('PAYSTACK_SECRET_KEY')
     const reference = `TW_${Date.now()}_${Math.random().toString(36).substring(7)}`
 
@@ -63,7 +86,7 @@ serve(async (req: Request) => {
     const data = await paystackRes.json()
     if (!data.status) throw new Error(data.message)
 
-    // 5. Record Transaction (Pending)
+    // 6. Record Transaction (Pending)
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -75,7 +98,7 @@ serve(async (req: Request) => {
       amount: amount / 100, // Naira
       status: 'pending',
       plan_type: plan,
-      metadata: { platform }
+      metadata: { platform, is_upgrade }
     })
 
     return new Response(
