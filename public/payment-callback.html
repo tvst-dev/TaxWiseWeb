@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Successful - TaxWise Nigeria</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #0A0A0A 0%, #1a1a1a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 24px;
+            padding: 48px 32px;
+            max-width: 480px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: #16A34A;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            animation: scaleIn 0.5s ease-out;
+        }
+
+        .success-icon svg {
+            width: 40px;
+            height: 40px;
+            color: white;
+        }
+
+        @keyframes scaleIn {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0A0A0A;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: #525252;
+            margin-bottom: 32px;
+            line-height: 1.5;
+        }
+
+        .reference {
+            background: #F5F5F5;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 32px;
+        }
+
+        .reference-label {
+            font-size: 12px;
+            color: #737373;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .reference-value {
+            font-size: 14px;
+            color: #0A0A0A;
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .btn {
+            display: inline-block;
+            width: 100%;
+            padding: 16px 32px;
+            background: #0A0A0A;
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background: #262626;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .info-text {
+            margin-top: 24px;
+            font-size: 13px;
+            color: #737373;
+            line-height: 1.6;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 16px;
+        }
+
+        .spinner {
+            border: 3px solid #E5E5E5;
+            border-top: 3px solid #0A0A0A;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .email-notice {
+            background: #EFF6FF;
+            border-left: 4px solid #3B82F6;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 24px;
+            text-align: left;
+        }
+
+        .email-notice p {
+            font-size: 13px;
+            color: #1E3A8A;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 32px 24px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .subtitle {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+            </svg>
+        </div>
+
+        <h1>Payment Successful!</h1>
+        <p class="subtitle">Your subscription has been activated. Welcome to TaxWise Nigeria!</p>
+
+        <div class="reference">
+            <div class="reference-label">Transaction Reference</div>
+            <div class="reference-value" id="reference">Loading...</div>
+        </div>
+
+        <button class="btn" onclick="openApp()">
+            Continue in App
+        </button>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+        </div>
+
+        <div class="email-notice">
+            <p><strong>Email Confirmation:</strong> A receipt has been sent to your email address.</p>
+        </div>
+
+        <p class="info-text">
+            If the app doesn't open automatically, please open TaxWise manually from your home screen.
+        </p>
+    </div>
+
+    <script>
+        function getQueryParam(param) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(param);
+        }
+
+        const reference = getQueryParam('reference') || getQueryParam('trxref');
+        
+        if (reference) {
+            document.getElementById('reference').textContent = reference;
+        }
+
+        function openApp() {
+            const btn = document.querySelector('.btn');
+            const loading = document.getElementById('loading');
+            
+            btn.textContent = 'Opening app...';
+            btn.disabled = true;
+            loading.style.display = 'block';
+
+            const deepLink = `taxwise://payment-success?reference=${reference}`;
+            const universalLink = `https://taxwise.com.ng/payment-success?reference=${reference}`;
+            
+            window.location.href = deepLink;
+            
+            setTimeout(() => {
+                window.location.href = universalLink;
+            }, 1500);
+
+            setTimeout(() => {
+                btn.textContent = 'App Not Installed?';
+                btn.disabled = false;
+                loading.style.display = 'none';
+                btn.onclick = () => {
+                    alert('Please install TaxWise from the Play Store or App Store');
+                };
+            }, 3000);
+        }
+
+        window.onload = () => {
+            setTimeout(() => {
+                const shouldAutoOpen = confirm('Payment successful! Open TaxWise app now?');
+                if (shouldAutoOpen) {
+                    openApp();
+                }
+            }, 1000);
+        };
+    </script>
+</body>
+</html>
