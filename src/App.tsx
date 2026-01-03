@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import AuthPage from "./pages/AuthPage";
 import Dashboard from "./pages/Dashboard";
@@ -27,17 +28,62 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            {/* Public Routes */}
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<AuthPage />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/developer" element={<DeveloperPortal />} />
-            <Route path="/pricing" element={<PricingPage />} />
-            <Route path="/subscription" element={<SubscriptionPage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/payment-callback" element={<PaymentCallback />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            
+            {/* Payment Callback - Requires Auth but not Active Subscription */}
+            <Route 
+              path="/payment-callback" 
+              element={
+                <ProtectedRoute requiresActiveSubscription={false}>
+                  <PaymentCallback />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Pricing Page - Requires Auth but not Active Subscription */}
+            <Route 
+              path="/pricing" 
+              element={
+                <ProtectedRoute requiresActiveSubscription={false}>
+                  <PricingPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Protected Routes - Require Active Subscription */}
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/developer" 
+              element={
+                <ProtectedRoute>
+                  <DeveloperPortal />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/subscription" 
+              element={
+                <ProtectedRoute>
+                  <SubscriptionPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Catch-all 404 Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
