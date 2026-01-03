@@ -27,26 +27,28 @@ export default function ProtectedRoute({
       }
 
       try {
+        // Force a fresh query with no cache
         const { data, error } = await supabase
           .from('api_subscriptions')
           .select('status, is_legacy_user')
-          .single();
+          .eq('user_id', user.id)
+          .maybeSingle(); // Use maybeSingle() instead of single() to avoid errors
 
         if (error) {
-          // Handle "no rows returned" error gracefully for new users
-          if (error.code === 'PGRST116') {
-            console.log('No subscription found, setting to pending');
-            setSubscriptionStatus('pending');
-          } else {
-            console.error('Error fetching subscription:', error);
-            setSubscriptionStatus('pending');
-          }
+          console.error('Error fetching subscription:', error);
+          setSubscriptionStatus('pending');
+        } else if (!data) {
+          // No subscription found
+          console.log('No subscription found, setting to pending');
+          setSubscriptionStatus('pending');
         } else {
           // Legacy users always have access
-          if (data?.is_legacy_user) {
+          if (data.is_legacy_user) {
+            console.log('Legacy user detected, granting access');
             setSubscriptionStatus('active');
           } else {
-            setSubscriptionStatus(data?.status || 'pending');
+            console.log('Subscription status:', data.status);
+            setSubscriptionStatus(data.status || 'pending');
           }
         }
       } catch (error) {
@@ -57,7 +59,12 @@ export default function ProtectedRoute({
       }
     };
 
-    checkSubscription();
+    // Add a small delay to ensure auth state is fully loaded
+    const timer = setTimeout(() => {
+      checkSubscription();
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [user]);
 
   // Show loading spinner while checking auth or subscription
