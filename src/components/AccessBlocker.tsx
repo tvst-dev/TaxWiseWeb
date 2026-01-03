@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Lock, CreditCard, AlertTriangle } from 'lucide-react';
+import { Lock, CreditCard, AlertTriangle, LogOut } from 'lucide-react';
 
 /**
  * AccessBlocker Component
@@ -27,7 +27,7 @@ export default function AccessBlocker({
   message = "This feature requires an active subscription",
   showPricingButton = true 
 }: AccessBlockerProps) {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -51,8 +51,13 @@ export default function AccessBlocker({
         .single();
 
       if (error) {
-        console.error('Error checking subscription:', error);
-        setHasAccess(false);
+        // Handle "no rows returned" error for new users
+        if (error.code === 'PGRST116') {
+          setHasAccess(false);
+        } else {
+          console.error('Error checking subscription:', error);
+          setHasAccess(false);
+        }
       } else {
         // Grant access if legacy user OR status is active
         const access = data?.is_legacy_user || data?.status === 'active';
@@ -63,6 +68,15 @@ export default function AccessBlocker({
       setHasAccess(false);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/auth');
+    } catch (error) {
+      console.error('Sign out error:', error);
     }
   };
 
@@ -118,10 +132,11 @@ export default function AccessBlocker({
                 </Button>
                 <Button 
                   variant="outline"
-                  onClick={() => navigate('/')}
+                  onClick={handleSignOut}
                   className="flex-1"
                 >
-                  Go to Homepage
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
                 </Button>
               </div>
             )}
