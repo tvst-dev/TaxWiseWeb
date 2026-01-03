@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Check, ArrowLeft, Zap, Building2, Rocket, AlertCircle, CheckCircle } from 'lucide-react';
+import { Check, ArrowLeft, Zap, Building2, Rocket, AlertCircle, CheckCircle, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { initiatePayment, PaymentData } from '@/lib/paystack';
 
@@ -25,7 +25,7 @@ interface Subscription {
 }
 
 export default function PricingPage() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -45,17 +45,47 @@ export default function PricingPage() {
   useEffect(() => {
     if (user) {
       fetchSubscription();
+    } else {
+      setLoading(false);
     }
   }, [user]);
 
   const fetchSubscription = async () => {
-    const { data } = await supabase
-      .from('api_subscriptions')
-      .select('tier, status, is_legacy_user')
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('api_subscriptions')
+        .select('tier, status, is_legacy_user')
+        .single();
 
-    setSubscription(data);
-    setLoading(false);
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 is "no rows returned" - not a real error for new users
+        console.error('Error fetching subscription:', error);
+      }
+      
+      setSubscription(data);
+    } catch (error) {
+      console.error('Unexpected error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: 'Signed Out',
+        description: 'You have been successfully signed out.',
+      });
+      navigate('/auth');
+    } catch (error) {
+      console.error('Sign out error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to sign out. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleUpgrade = async (tier: string) => {
@@ -185,17 +215,31 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        {/* Conditional Back Button - Only show if user has active access */}
-        {hasActiveSubscription && (
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/dashboard')}
-            className="mb-6"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
-        )}
+        {/* Header with Back Button and Sign Out */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            {hasActiveSubscription && (
+              <Button
+                variant="ghost"
+                onClick={() => navigate('/dashboard')}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Button>
+            )}
+          </div>
+          
+          {user && (
+            <Button
+              variant="outline"
+              onClick={handleSignOut}
+              className="ml-auto"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          )}
+        </div>
 
         {/* Access Restricted Alert for Pending Users */}
         {hasPendingPayment && (
