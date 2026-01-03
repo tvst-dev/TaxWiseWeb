@@ -73,18 +73,33 @@ export default function AuthPage() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate basic fields
     if (!firstName || !lastName || !email || !password) {
-      toast({ title: 'Error', description: 'Please fill all basic fields', variant: 'destructive' });
+      toast({ 
+        title: 'Error', 
+        description: 'Please fill all basic fields', 
+        variant: 'destructive' 
+      });
       return;
     }
 
+    // Validate business fields for non-individual plans
     if (selectedPlan !== 'individual') {
       if (!companyName || !companySize || !jobTitle) {
-        toast({ title: 'Error', description: 'Please fill all company details', variant: 'destructive' });
+        toast({ 
+          title: 'Error', 
+          description: 'Please fill all company details (Company Name, Number of Staff, and Job Title)', 
+          variant: 'destructive' 
+        });
         return;
       }
       if (!isCompanyRep) {
-        toast({ title: 'Error', description: 'Please confirm you represent the company', variant: 'destructive' });
+        toast({ 
+          title: 'Error', 
+          description: 'Please confirm you have the authority to create an account for this organization', 
+          variant: 'destructive' 
+        });
         return;
       }
     }
@@ -92,6 +107,7 @@ export default function AuthPage() {
     setLocalProcessing(true);
 
     try {
+      // Step 1: Sign up user
       const { data: authData, error: signUpError } = await signUp(email, password, {
         first_name: firstName,
         last_name: lastName,
@@ -100,27 +116,45 @@ export default function AuthPage() {
 
       if (signUpError) throw signUpError;
 
-      if (authData.user) {
-        const profileUpdates: any = {
-          user_id: authData.user.id,
-          full_name: `${firstName} ${lastName}`,
-          account_type: selectedPlan === 'individual' ? 'individual' : 'corporate',
-          updated_at: new Date().toISOString()
-        };
-
-        if (selectedPlan !== 'individual') {
-          profileUpdates.company_name = companyName;
-          profileUpdates.company_size = companySize;
-          profileUpdates.job_title = jobTitle;
-          profileUpdates.is_company_rep = isCompanyRep;
-        }
-
-        await supabase.from('profiles').upsert(profileUpdates);
-        await handlePayment(authData.user.id, email);
+      if (!authData.user) {
+        throw new Error('User creation failed');
       }
+
+      // Step 2: Update profile with all information
+      const profileUpdates: any = {
+        user_id: authData.user.id,
+        full_name: `${firstName} ${lastName}`,
+        account_type: selectedPlan === 'individual' ? 'individual' : 'corporate',
+        updated_at: new Date().toISOString()
+      };
+
+      // Add business fields for non-individual plans
+      if (selectedPlan !== 'individual') {
+        profileUpdates.company_name = companyName;
+        profileUpdates.company_size = companySize;
+        profileUpdates.job_title = jobTitle;
+        profileUpdates.is_company_rep = isCompanyRep;
+      }
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert(profileUpdates);
+
+      if (profileError) {
+        console.error('Profile update error:', profileError);
+        throw new Error('Failed to save profile information');
+      }
+
+      // Step 3: Initiate payment
+      await handlePayment(authData.user.id, email);
+
     } catch (error: any) {
-      console.error(error);
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('Sign up error:', error);
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to create account', 
+        variant: 'destructive' 
+      });
     } finally {
       setLocalProcessing(false);
     }
@@ -128,53 +162,126 @@ export default function AuthPage() {
 
   const handlePayment = async (userId: string, userEmail: string) => {
     try {
+      // Verify session exists
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        toast({ title: "Account Created", description: "Please check your email to confirm account." });
+        toast({ 
+          title: "Account Created", 
+          description: "Please check your email to confirm your account before payment." 
+        });
         return;
       }
 
       const plan = plans.find(p => p.id === selectedPlan);
-      if (!plan) throw new Error("Invalid plan");
+      if (!plan) {
+        throw new Error("Invalid plan selected");
+      }
+
+      // Prepare payment data with all required information
+      const paymentBody: any = {
+        email: userEmail,
+        amount: plan.rawPrice,
+        plan: selectedPlan,
+        firstName: firstName,
+        lastName: lastName,
+        userId: userId
+      };
+
+      // Add company information for business plans
+      if (selectedPlan !== 'individual') {
+        paymentBody.companyName = companyName;
+        paymentBody.companySize = companySize;
+        paymentBody.jobTitle = jobTitle;
+      }
+
+      console.log('Initiating payment with data:', paymentBody);
 
       const { data, error } = await supabase.functions.invoke('initialize-payment', {
-        body: {
-          email: userEmail,
-          amount: plan.rawPrice,
-          plan: selectedPlan,
-          firstName,
-          lastName
-        }
+        body: paymentBody
       });
 
-      if (error || !data.status) throw new Error("Payment initialization failed");
-      window.location.href = data.data.authorization_url;
+      if (error) {
+        console.error('Payment initialization error:', error);
+        throw new Error(error.message || "Payment initialization failed");
+      }
 
-    } catch (e) {
-      navigate('/dashboard'); 
+      if (!data || !data.status) {
+        console.error('Payment response:', data);
+        throw new Error("Invalid payment response");
+      }
+
+      // Redirect to Paystack
+      if (data.data?.authorization_url) {
+        window.location.href = data.data.authorization_url;
+      } else {
+        throw new Error("Payment URL not received");
+      }
+
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      toast({ 
+        title: 'Payment Error', 
+        description: error.message || 'Failed to initialize payment. Please try again from the pricing page.', 
+        variant: 'destructive' 
+      });
+      
+      // Redirect to pricing page so user can try payment again
+      setTimeout(() => {
+        navigate('/pricing');
+      }, 2000);
     }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!email || !password) {
+      toast({
+        title: 'Error',
+        description: 'Please enter both email and password',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
     setLocalProcessing(true);
     const { error } = await signIn(email, password);
     setLocalProcessing(false);
-    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    
+    if (error) {
+      toast({ 
+        title: 'Error', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+    }
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!email) {
+      toast({
+        title: 'Error',
+        description: 'Please enter your email address',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
     try {
       const redirectUrl = `${window.location.origin}/reset-password`;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { 
+        redirectTo: redirectUrl 
+      });
+      
       if (error) throw error;
       setForgotPasswordSuccess(true);
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ 
+        title: 'Error', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
     }
   };
 
@@ -188,7 +295,16 @@ export default function AuthPage() {
             <CardDescription>We've sent a password reset link to {email}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" className="w-full" onClick={() => setForgotPasswordSuccess(false)}>Back to Login</Button>
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              onClick={() => {
+                setForgotPasswordSuccess(false);
+                setIsForgotPassword(false);
+              }}
+            >
+              Back to Login
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -213,132 +329,18 @@ export default function AuthPage() {
             <form onSubmit={handleForgotPassword} className="space-y-4">
               <div className="space-y-2">
                 <Label>Email Address</Label>
-                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                <Input 
+                  type="email" 
+                  value={email} 
+                  onChange={e => setEmail(e.target.value)} 
+                  required 
+                  placeholder="your@email.com"
+                />
               </div>
               <Button className="w-full" type="submit">Send Reset Link</Button>
-              <Button variant="ghost" className="w-full" onClick={() => setIsForgotPassword(false)}>
-                <ArrowLeft className="w-4 h-4 mr-2" /> Back to Login
-              </Button>
-            </form>
-          ) : isSignUp ? (
-            <form onSubmit={handleSignUp} className="space-y-4">
-              {/* Plan Selection Grid */}
-              <div className="space-y-3 pt-2">
-                <Label>Select Account Type</Label>
-                <RadioGroup value={selectedPlan} onValueChange={(v: any) => setSelectedPlan(v)} className="grid grid-cols-1 gap-2">
-                  {plans.map((plan) => (
-                    <div key={plan.id} className={`relative flex items-center space-x-3 rounded-lg border p-3 cursor-pointer transition-all hover:bg-muted/50 ${selectedPlan === plan.id ? 'ring-2 ring-primary border-transparent bg-primary/5' : ''}`}>
-                      <RadioGroupItem value={plan.id} id={plan.id} className="absolute left-3 top-3.5" />
-                      <div className="flex-1 pl-8 cursor-pointer" onClick={() => setSelectedPlan(plan.id as any)}>
-                        <div className="flex justify-between items-center w-full">
-                          <span className="font-semibold text-sm flex items-center gap-2">
-                            {plan.icon} {plan.name}
-                          </span>
-                          <span className="font-bold text-sm text-primary">{plan.price}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{plan.description}</p>
-                      </div>
-                    </div>
-                  ))}
-                </RadioGroup>
-              </div>
-
-              {/* Basic Fields */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>First Name</Label>
-                  <Input value={firstName} onChange={e => setFirstName(e.target.value)} required placeholder="John" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Last Name</Label>
-                  <Input value={lastName} onChange={e => setLastName(e.target.value)} required placeholder="Doe" />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="john@example.com" />
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Password</Label>
-                <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
-              </div>
-
-              {/* DYNAMIC BUSINESS FIELDS (Seamlessly Integrated) */}
-              {selectedPlan !== 'individual' && (
-                <div className="space-y-4 pt-4 border-t mt-4 animate-in fade-in slide-in-from-top-4 duration-300">
-                  <div className="space-y-2">
-                    <Label>Company Name</Label>
-                    <Input placeholder="e.g. My Company Ltd" value={companyName} onChange={e => setCompanyName(e.target.value)} required />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Job Title</Label>
-                      <Input placeholder="e.g. CEO" value={jobTitle} onChange={e => setJobTitle(e.target.value)} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Employees</Label>
-                      <Select value={companySize} onValueChange={setCompanySize} required>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Size" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1-10">1-10</SelectItem>
-                          <SelectItem value="11-50">11-50</SelectItem>
-                          <SelectItem value="50-200">50-200</SelectItem>
-                          <SelectItem value="200+">200+</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-2 pt-2">
-                    <Checkbox id="rep" checked={isCompanyRep} onCheckedChange={(c) => setIsCompanyRep(c as boolean)} required />
-                    <Label htmlFor="rep" className="text-xs leading-tight font-normal text-muted-foreground cursor-pointer">
-                      I confirm I am authorized to create this account on behalf of the company.
-                    </Label>
-                  </div>
-                </div>
-              )}
-
-              <Button className="w-full mt-4 h-11 text-base" type="submit" disabled={localProcessing || authLoading}>
-                {localProcessing || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 
-                 `Sign Up & Pay ${plans.find(p => p.id === selectedPlan)?.price}`}
-              </Button>
-            </form>
-          ) : (
-            // Sign In Form
-            <form onSubmit={handleSignIn} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label>Password</Label>
-                  <span className="text-xs text-primary cursor-pointer hover:underline" onClick={() => setIsForgotPassword(true)}>Forgot password?</span>
-                </div>
-                <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-              </div>
-              <Button className="w-full h-11 text-base" type="submit" disabled={localProcessing || authLoading}>
-                {localProcessing || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Sign In'}
-              </Button>
-            </form>
-          )}
-
-          {!isForgotPassword && (
-            <div className="mt-6 text-center text-sm text-muted-foreground">
-              {isSignUp ? (
-                <p>Already have an account? <span className="text-primary font-bold cursor-pointer hover:underline" onClick={() => setIsSignUp(false)}>Sign In</span></p>
-              ) : (
-                <p>Don't have an account? <span className="text-primary font-bold cursor-pointer hover:underline" onClick={() => setIsSignUp(true)}>Sign Up</span></p>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+              <Button 
+                variant="ghost" 
+                className="w-full" 
+                type="button"
+                onClick={() => setIsForgotPassword(false)}
+              >
