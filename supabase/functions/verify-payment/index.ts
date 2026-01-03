@@ -1,3 +1,4 @@
+//supabase/functions/verify-payment/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -72,11 +73,38 @@ serve(async (req) => {
 
     const metadata = verifyData.data.metadata || {}
     const plan = metadata.plan || 'individual'
+    const amount = verifyData.data.amount / 100 // Convert from kobo to naira
 
     const now = new Date()
     const subscriptionEnd = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000))
 
-    const { error: updateError } = await supabaseClient
+    // ============================================
+    // FIX: Update api_subscriptions table (not profiles)
+    // ============================================
+    const { error: subscriptionError } = await supabaseClient
+      .from('api_subscriptions')
+      .upsert({
+        user_id: user.id,
+        tier: plan,
+        status: 'active',
+        amount: amount,
+        currency: 'NGN',
+        current_period_start: now.toISOString(),
+        current_period_end: subscriptionEnd.toISOString(),
+        updated_at: now.toISOString(),
+      }, {
+        onConflict: 'user_id'
+      })
+
+    if (subscriptionError) {
+      console.error('Subscription update error:', subscriptionError)
+      throw new Error('Failed to update subscription: ' + subscriptionError.message)
+    }
+
+    console.log(`✅ api_subscriptions updated for user: ${user.id}`)
+
+    // Also update profiles table for backward compatibility
+    const { error: profileError } = await supabaseClient
       .from('profiles')
       .update({
         onboarding_status: 'active',
@@ -89,17 +117,55 @@ serve(async (req) => {
       })
       .eq('user_id', user.id)
 
-    if (updateError) {
-      console.error('Profile update error:', updateError)
-      throw new Error('Failed to update profile: ' + updateError.message)
+    if (profileError) {
+      console.error('Profile update error (non-critical):', profileError)
+      // Don't throw error here since api_subscriptions is the primary table
     }
 
-    const { error: paymentError } = await supabaseClient
+    console.log(`✅ profiles updated for user: ${user.id}`)
+
+    // Update or insert payment transaction record
+    const { error: paymentUpdateError } = await supabaseClient
+      .from('payment_transactions')
+      .update({
+        status: 'success',
+        paid_at: now.toISOString(),
+      })
+      .eq('paystack_reference', reference)
+
+    if (paymentUpdateError) {
+      console.error('Payment transaction update error:', paymentUpdateError)
+      
+      // If update failed, try insert (in case record doesn't exist)
+      const { error: paymentInsertError } = await supabaseClient
+        .from('payment_transactions')
+        .insert({
+          user_id: user.id,
+          paystack_reference: reference,
+          amount: amount,
+          currency: 'NGN',
+          plan_type: plan,
+          status: 'success',
+          paid_at: now.toISOString(),
+          created_at: now.toISOString(),
+        })
+
+      if (paymentInsertError) {
+        console.error('Payment transaction insert error:', paymentInsertError)
+      } else {
+        console.log(`✅ payment_transactions record created`)
+      }
+    } else {
+      console.log(`✅ payment_transactions updated`)
+    }
+
+    // Also keep old payments table for backward compatibility
+    const { error: paymentsError } = await supabaseClient
       .from('payments')
       .insert({
         user_id: user.id,
         reference: reference,
-        amount: verifyData.data.amount / 100,
+        amount: amount,
         currency: verifyData.data.currency,
         status: 'success',
         plan: plan,
@@ -108,19 +174,23 @@ serve(async (req) => {
         created_at: now.toISOString(),
       })
 
-    if (paymentError) {
-      console.error('Payment record error:', paymentError)
+    if (paymentsError) {
+      console.error('Payments table error (non-critical):', paymentsError)
     }
 
-    console.log(`Payment verified successfully for user: ${user.id}`)
+    console.log(`✅ Payment verified successfully for user: ${user.id}`)
+    console.log(`📊 Subscription details: tier=${plan}, status=active, end=${subscriptionEnd.toISOString()}`)
 
     return new Response(
       JSON.stringify({
         status: true,
         message: 'Payment verified successfully',
         data: {
+          user_id: user.id,
           subscription_status: 'active',
+          subscription_tier: plan,
           subscription_end: subscriptionEnd.toISOString(),
+          amount: amount,
         },
       }),
       {
@@ -129,7 +199,7 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('Verification error:', error)
+    console.error('❌ Verification error:', error)
     return new Response(
       JSON.stringify({
         status: false,
