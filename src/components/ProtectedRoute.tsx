@@ -33,8 +33,14 @@ export default function ProtectedRoute({
           .single();
 
         if (error) {
-          console.error('Error fetching subscription:', error);
-          setSubscriptionStatus('pending');
+          // Handle "no rows returned" error gracefully for new users
+          if (error.code === 'PGRST116') {
+            console.log('No subscription found, setting to pending');
+            setSubscriptionStatus('pending');
+          } else {
+            console.error('Error fetching subscription:', error);
+            setSubscriptionStatus('pending');
+          }
         } else {
           // Legacy users always have access
           if (data?.is_legacy_user) {
