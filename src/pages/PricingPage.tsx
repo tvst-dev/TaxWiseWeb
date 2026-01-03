@@ -1,11 +1,13 @@
+// TaxWiseWeb/src/pages/PricingPage.tsx
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Check, ArrowLeft, Zap, Building2, Rocket } from 'lucide-react';
+import { Check, ArrowLeft, Zap, Building2, Rocket, AlertCircle, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { initiatePayment, PaymentData } from '@/lib/paystack';
 
@@ -18,6 +20,8 @@ declare global {
 
 interface Subscription {
   tier: string;
+  status: string;
+  is_legacy_user: boolean | null;
 }
 
 export default function PricingPage() {
@@ -47,7 +51,7 @@ export default function PricingPage() {
   const fetchSubscription = async () => {
     const { data } = await supabase
       .from('api_subscriptions')
-      .select('tier')
+      .select('tier, status, is_legacy_user')
       .single();
 
     setSubscription(data);
@@ -117,8 +121,8 @@ export default function PricingPage() {
         '1,000 API requests/month',
         'Basic API access',
       ],
-      cta: 'Current Plan',
-      disabled: true,
+      cta: 'Select Plan',
+      disabled: false,
     },
     {
       name: 'Small Businesses',
@@ -142,7 +146,7 @@ export default function PricingPage() {
         '10,000 API requests/month',
         'Advanced API features',
       ],
-      cta: 'Upgrade to Small Businesses',
+      cta: 'Select Plan',
       disabled: false,
     },
     {
@@ -169,28 +173,72 @@ export default function PricingPage() {
         'Full API access',
         'Custom rate limits',
       ],
-      cta: 'Upgrade to Large Corporations',
+      cta: 'Select Plan',
       disabled: false,
     },
   ];
 
+  // Determine if user can access dashboard
+  const hasActiveSubscription = subscription?.status === 'active' || subscription?.is_legacy_user;
+  const hasPendingPayment = subscription?.status === 'pending';
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/dashboard')}
-          className="mb-6"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Dashboard
-        </Button>
+        {/* Conditional Back Button - Only show if user has active access */}
+        {hasActiveSubscription && (
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="mb-6"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
+        )}
+
+        {/* Access Restricted Alert for Pending Users */}
+        {hasPendingPayment && (
+          <Alert className="mb-8 border-orange-200 bg-orange-50 max-w-7xl mx-auto">
+            <AlertCircle className="h-5 w-5 text-orange-600" />
+            <AlertTitle className="text-orange-900 font-semibold">
+              Payment Required - Access Restricted
+            </AlertTitle>
+            <AlertDescription className="text-orange-800">
+              Your account is currently in pending status. Please complete payment below to activate your subscription and unlock access to the dashboard, API keys, and all platform features.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Legacy User Alert */}
+        {subscription?.is_legacy_user && (
+          <Alert className="mb-8 border-blue-200 bg-blue-50 max-w-7xl mx-auto">
+            <CheckCircle className="h-5 w-5 text-blue-600" />
+            <AlertTitle className="text-blue-900 font-semibold">
+              Grandfathered Account - Lifetime Access
+            </AlertTitle>
+            <AlertDescription className="text-blue-800">
+              You have lifetime access to the {subscription.tier.replace('_', ' ')} plan. No payment required! You can view other plans below or{' '}
+              <Button 
+                variant="link" 
+                className="h-auto p-0 text-blue-700 font-semibold"
+                onClick={() => navigate('/dashboard')}
+              >
+                return to dashboard
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4">Choose Your Plan</h1>
+          <h1 className="text-4xl font-bold mb-4">
+            {hasPendingPayment ? 'Complete Your Payment' : 'Choose Your Plan'}
+          </h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Upgrade to unlock powerful features for your business including API access,
-            advanced analytics, and team collaboration tools
+            {hasPendingPayment 
+              ? 'Select your plan below to complete payment and unlock full access to TaxWise'
+              : 'Upgrade to unlock powerful features for your business including API access, advanced analytics, and team collaboration tools'
+            }
           </p>
         </div>
 
@@ -198,11 +246,15 @@ export default function PricingPage() {
           {plans.map((plan) => {
             const Icon = plan.icon;
             const isCurrentPlan = subscription?.tier === plan.tier;
+            const isPendingThisPlan = hasPendingPayment && isCurrentPlan;
+            const canSelect = !subscription?.is_legacy_user;
 
             return (
               <Card
                 key={plan.tier}
-                className={`relative ${plan.popular ? 'border-primary shadow-lg' : ''}`}
+                className={`relative ${
+                  plan.popular ? 'border-primary shadow-lg' : ''
+                } ${isPendingThisPlan ? 'ring-2 ring-orange-400' : ''}`}
               >
                 {plan.popular && (
                   <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -210,12 +262,21 @@ export default function PricingPage() {
                   </Badge>
                 )}
 
+                {isPendingThisPlan && (
+                  <Badge className="absolute -top-3 right-4 bg-orange-500">
+                    Pending Payment
+                  </Badge>
+                )}
+
+                {isCurrentPlan && hasActiveSubscription && (
+                  <Badge className="absolute -top-3 right-4 bg-green-600" variant="secondary">
+                    Current Plan
+                  </Badge>
+                )}
+
                 <CardHeader>
                   <div className="flex items-center justify-between mb-4">
                     <Icon className="h-8 w-8 text-primary" />
-                    {isCurrentPlan && (
-                      <Badge variant="secondary">Current</Badge>
-                    )}
                   </div>
                   <CardTitle className="text-2xl">{plan.name}</CardTitle>
                   <CardDescription>{plan.description}</CardDescription>
@@ -250,11 +311,26 @@ export default function PricingPage() {
 
                   <Button
                     className="w-full"
-                    variant={plan.popular ? 'default' : 'outline'}
-                    disabled={isCurrentPlan || loading}
+                    variant={plan.popular || isPendingThisPlan ? 'default' : 'outline'}
+                    disabled={
+                      !canSelect || 
+                      (isCurrentPlan && hasActiveSubscription) || 
+                      loading
+                    }
                     onClick={() => handleUpgrade(plan.tier)}
                   >
-                    {isCurrentPlan ? 'Current Plan' : plan.cta}
+                    {subscription?.is_legacy_user 
+                      ? 'Grandfathered'
+                      : isCurrentPlan && hasActiveSubscription 
+                        ? 'Current Plan'
+                        : isPendingThisPlan
+                          ? 'Complete Payment'
+                          : hasPendingPayment
+                            ? 'Switch & Pay'
+                            : hasActiveSubscription
+                              ? 'Upgrade'
+                              : plan.cta
+                    }
                   </Button>
                 </CardContent>
               </Card>
