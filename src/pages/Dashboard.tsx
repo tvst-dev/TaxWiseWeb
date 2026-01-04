@@ -220,7 +220,7 @@ export default function Dashboard() {
             )}
             <Button variant="outline" onClick={() => navigate('/developer')}>
               <Code className="h-5 w-5 mr-2" />
-              Developer
+              API console
             </Button>
             <Button variant="outline" onClick={() => navigate('/pricing')}>
               <CreditCard className="h-5 w-5 mr-2" />
