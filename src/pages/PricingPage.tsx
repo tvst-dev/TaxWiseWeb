@@ -1,4 +1,4 @@
-// TaxWiseWeb/src/pages/PricingPage.tsx
+// TaxWiseWeb/src/pages/PricingPage.tsx (FIXED - Step 3)
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,17 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Check, ArrowLeft, Zap, Building2, Rocket, AlertCircle, CheckCircle, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { initiatePayment, PaymentData } from '@/lib/paystack';
-
-// Make toast available globally for Paystack callback
-declare global {
-  interface Window {
-    showToast?: (options: { title: string; description: string; variant?: string }) => void;
-  }
-}
 
 interface Subscription {
   tier: string;
@@ -24,51 +21,62 @@ interface Subscription {
   is_legacy_user: boolean | null;
 }
 
+interface Profile {
+  company_name: string | null;
+  company_size: string | null;
+  job_title: string | null;
+  is_company_rep: boolean | null;
+}
+
 export default function PricingPage() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Make toast available globally
-  useEffect(() => {
-    window.showToast = (options) => {
-      toast({
-        title: options.title,
-        description: options.description,
-        variant: options.variant as 'destructive' | 'default',
-      });
-    };
-  }, [toast]);
+  
+  // Company details dialog
+  const [showCompanyDialog, setShowCompanyDialog] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<string>('');
+  const [companyName, setCompanyName] = useState('');
+  const [companySize, setCompanySize] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
+  const [isCompanyRep, setIsCompanyRep] = useState(false);
 
   useEffect(() => {
     if (user) {
-      fetchSubscription();
+      fetchSubscriptionAndProfile();
     } else {
       setLoading(false);
     }
   }, [user]);
 
-  const fetchSubscription = async () => {
+  const fetchSubscriptionAndProfile = async () => {
     try {
-      // Use profiles table (same as mobile app)
       const { data, error } = await supabase
         .from('profiles')
-        .select('subscription_plan, subscription_status')
+        .select('subscription_plan, subscription_status, company_name, company_size, job_title, is_company_rep')
         .eq('user_id', user?.id)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching subscription:', error);
+        console.error('Error fetching data:', error);
       }
       
       if (data) {
-        // Map profiles table to subscription object
         setSubscription({
           tier: data.subscription_plan || 'individual',
           status: data.subscription_status || 'pending',
-          is_legacy_user: false // profiles table doesn't have this field
+          is_legacy_user: false
+        });
+        
+        setProfile({
+          company_name: data.company_name,
+          company_size: data.company_size,
+          job_title: data.job_title,
+          is_company_rep: data.is_company_rep
         });
       }
     } catch (error) {
@@ -103,36 +111,133 @@ export default function PricingPage() {
         description: 'Please log in to upgrade your plan.',
         variant: 'destructive',
       });
+      navigate('/auth');
+      return;
+    }
+
+    // ✅ Check if business plan and company details are missing
+    const isBusinessPlan = tier !== 'individual';
+    const hasCompanyDetails = profile?.company_name && profile?.company_size && profile?.job_title;
+
+    if (isBusinessPlan && !hasCompanyDetails) {
+      // Show dialog to collect company details
+      setSelectedPlan(tier);
+      setShowCompanyDialog(true);
+      return;
+    }
+
+    // Proceed with payment
+    await initiatePayment(tier);
+  };
+
+  const handleCompanyDetailsSubmit = async () => {
+    // Validate company details
+    if (!companyName || !companySize || !jobTitle) {
+      toast({
+        title: 'Error',
+        description: 'Please fill all company details',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!isCompanyRep) {
+      toast({
+        title: 'Error',
+        description: 'Please confirm authorization',
+        variant: 'destructive',
+      });
       return;
     }
 
     try {
+      // ✅ Update profile with company details first
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          company_name: companyName.trim(),
+          company_size: companySize,
+          job_title: jobTitle.trim(),
+          is_company_rep: isCompanyRep,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      // Close dialog and proceed with payment
+      setShowCompanyDialog(false);
+      await initiatePayment(selectedPlan);
+
+    } catch (error: any) {
+      console.error('Error updating company details:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save company details',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const initiatePayment = async (tier: string) => {
+    try {
       setLoading(true);
 
-      // Get plan details
       const plan = plans.find(p => p.tier === tier);
       if (!plan) {
         throw new Error('Plan not found');
       }
 
-      // Extract amount from price string (remove ₦ and commas)
+      // Get current session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Session expired. Please log in again.');
+      }
+
+      // Extract amount from price string
       const amount = parseFloat(plan.price.replace('₦', '').replace(',', ''));
 
-      const paymentData: PaymentData = {
+      // ✅ Build payment data with ALL metadata
+      const paymentData: any = {
         email: user.email || '',
         amount: amount,
         plan: tier,
-        userId: user.id,
+        user_id: user.id,
+        callback_url: `${window.location.origin}/payment-callback.html`
       };
 
-      await initiatePayment(paymentData);
+      // ✅ Add company details to metadata (from profile or form)
+      if (tier !== 'individual') {
+        paymentData.company_name = companyName || profile?.company_name || '';
+        paymentData.company_size = companySize || profile?.company_size || '';
+        paymentData.job_title = jobTitle || profile?.job_title || '';
+        paymentData.is_company_rep = isCompanyRep || profile?.is_company_rep || false;
+      }
 
-      // Note: Toast is shown inside initiatePayment on success
-    } catch (error) {
-      console.error('Error initiating upgrade:', error);
+      console.log('💳 Initiating payment:', paymentData);
+
+      const { data, error } = await supabase.functions.invoke('initialize-payment', {
+        body: paymentData,
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (error) throw error;
+
+      if (!data || !data.status || !data.data?.authorization_url) {
+        throw new Error(data?.message || 'Failed to initialize payment');
+      }
+
+      console.log('✅ Redirecting to Paystack...');
+      window.location.href = data.data.authorization_url;
+
+    } catch (error: any) {
+      console.error('Error initiating payment:', error);
       toast({
         title: 'Error',
-        description: 'Failed to initiate payment. Please try again.',
+        description: error.message || 'Failed to initiate payment. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -216,21 +321,16 @@ export default function PricingPage() {
     },
   ];
 
-  // Determine if user can access dashboard
   const hasActiveSubscription = subscription?.status === 'active' || subscription?.is_legacy_user;
   const hasPendingPayment = subscription?.status === 'pending';
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        {/* Header with Back Button and Sign Out */}
         <div className="flex items-center justify-between mb-6">
           <div>
             {hasActiveSubscription && (
-              <Button
-                variant="ghost"
-                onClick={() => navigate('/dashboard')}
-              >
+              <Button variant="ghost" onClick={() => navigate('/dashboard')}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Dashboard
               </Button>
@@ -238,18 +338,13 @@ export default function PricingPage() {
           </div>
           
           {user && (
-            <Button
-              variant="outline"
-              onClick={handleSignOut}
-              className="ml-auto"
-            >
+            <Button variant="outline" onClick={handleSignOut} className="ml-auto">
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
             </Button>
           )}
         </div>
 
-        {/* Access Restricted Alert for Pending Users */}
         {hasPendingPayment && (
           <Alert className="mb-8 border-orange-200 bg-orange-50 max-w-7xl mx-auto">
             <AlertCircle className="h-5 w-5 text-orange-600" />
@@ -257,27 +352,7 @@ export default function PricingPage() {
               Payment Required - Access Restricted
             </AlertTitle>
             <AlertDescription className="text-orange-800">
-              Your account is currently in pending status. Please complete payment below to activate your subscription and unlock access to the dashboard, API keys, and all platform features.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Legacy User Alert */}
-        {subscription?.is_legacy_user && (
-          <Alert className="mb-8 border-blue-200 bg-blue-50 max-w-7xl mx-auto">
-            <CheckCircle className="h-5 w-5 text-blue-600" />
-            <AlertTitle className="text-blue-900 font-semibold">
-              Grandfathered Account - Lifetime Access
-            </AlertTitle>
-            <AlertDescription className="text-blue-800">
-              You have lifetime access to the {subscription.tier.replace('_', ' ')} plan. No payment required! You can view other plans below or{' '}
-              <Button 
-                variant="link" 
-                className="h-auto p-0 text-blue-700 font-semibold"
-                onClick={() => navigate('/dashboard')}
-              >
-                return to dashboard
-              </Button>
+              Your account is currently in pending status. Please complete payment below to activate your subscription.
             </AlertDescription>
           </Alert>
         )}
@@ -289,7 +364,7 @@ export default function PricingPage() {
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             {hasPendingPayment 
               ? 'Select your plan below to complete payment and unlock full access to TaxWise'
-              : 'Upgrade to unlock powerful features for your business including API access, advanced analytics, and team collaboration tools'
+              : 'Upgrade to unlock powerful features for your business'
             }
           </p>
         </div>
@@ -410,6 +485,80 @@ export default function PricingPage() {
           </Card>
         </div>
       </div>
+
+      {/* ✅ Company Details Dialog */}
+      <Dialog open={showCompanyDialog} onOpenChange={setShowCompanyDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Company Details Required</DialogTitle>
+            <DialogDescription>
+              Please provide your company information to proceed with the business plan
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Company Name *</Label>
+              <Input 
+                placeholder="e.g. Acme Corporation Ltd" 
+                value={companyName} 
+                onChange={e => setCompanyName(e.target.value)} 
+                required 
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Your Job Title *</Label>
+                <Input 
+                  placeholder="e.g. CEO, CFO" 
+                  value={jobTitle} 
+                  onChange={e => setJobTitle(e.target.value)} 
+                  required 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Number of Staff *</Label>
+                <Select value={companySize} onValueChange={setCompanySize} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1-10">1-10</SelectItem>
+                    <SelectItem value="11-50">11-50</SelectItem>
+                    <SelectItem value="51-200">51-200</SelectItem>
+                    <SelectItem value="201-500">201-500</SelectItem>
+                    <SelectItem value="500+">500+</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-2 pt-2 bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <Checkbox 
+                id="rep-dialog" 
+                checked={isCompanyRep} 
+                onCheckedChange={(c) => setIsCompanyRep(c as boolean)} 
+                required 
+                className="mt-1" 
+              />
+              <Label htmlFor="rep-dialog" className="text-sm leading-tight font-normal text-gray-700 cursor-pointer">
+                I confirm that I am authorized to create this account on behalf of{' '}
+                <strong>{companyName || 'the company'}</strong> and have the authority to enter into this agreement.
+              </Label>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setShowCompanyDialog(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleCompanyDetailsSubmit} className="flex-1">
+              Continue to Payment
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
