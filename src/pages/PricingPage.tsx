@@ -52,17 +52,25 @@ export default function PricingPage() {
 
   const fetchSubscription = async () => {
     try {
+      // Use profiles table (same as mobile app)
       const { data, error } = await supabase
-        .from('api_subscriptions')
-        .select('tier, status, is_legacy_user')
-        .single();
+        .from('profiles')
+        .select('subscription_plan, subscription_status')
+        .eq('user_id', user?.id)
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
-        // PGRST116 is "no rows returned" - not a real error for new users
         console.error('Error fetching subscription:', error);
       }
       
-      setSubscription(data);
+      if (data) {
+        // Map profiles table to subscription object
+        setSubscription({
+          tier: data.subscription_plan || 'individual',
+          status: data.subscription_status || 'pending',
+          is_legacy_user: false // profiles table doesn't have this field
+        });
+      }
     } catch (error) {
       console.error('Unexpected error:', error);
     } finally {
@@ -182,7 +190,7 @@ export default function PricingPage() {
     {
       name: 'Large Corporations',
       tier: 'large_corporation',
-      price: '₦100.90',
+      price: '₦49,999.90',
       period: 'per month',
       icon: Building2,
       description: 'For large organizations',
