@@ -186,8 +186,10 @@
       
       document.getElementById('dashboard-btn').style.display = 'inline-block';
       
-      // Auto-redirect after 3 seconds
+      // ✅ CRITICAL: Always redirect to dashboard after successful payment
+      updateStatus('Redirecting to dashboard in 3 seconds...');
       setTimeout(() => {
+        console.log('✅ Redirecting to dashboard...');
         window.location.href = '/dashboard';
       }, 3000);
     }
@@ -263,9 +265,14 @@
         }
 
         // ✅ STEP 3: Check if payment was successful
-        if (verifyData.data.status !== 'success') {
-          console.log('⚠️ Payment not successful:', verifyData.data.status);
-          showError(`Payment ${verifyData.data.status}. Please try again.`);
+        const paymentStatus = verifyData.data?.status || verifyData.status;
+        
+        console.log('💳 Payment status from Paystack:', paymentStatus);
+        console.log('💳 Full payment data:', verifyData);
+        
+        if (paymentStatus !== 'success') {
+          console.log('⚠️ Payment not successful:', paymentStatus);
+          showError(`Payment ${paymentStatus}. Please try again.`);
           return;
         }
 
@@ -273,16 +280,41 @@
         updateStatus('Activating your subscription...');
 
         // ✅ STEP 4: Extract metadata from Paystack response
-        const metadata = verifyData.data.metadata || {};
-        const plan = metadata.plan || metadata.custom_fields?.find(f => f.variable_name === 'plan')?.value;
+        // Try multiple paths where metadata might be
+        const metadata = verifyData.data?.metadata || verifyData.metadata || {};
+        const customFields = verifyData.data?.custom_fields || verifyData.custom_fields || [];
+        
+        // Try to get plan from metadata or custom_fields
+        let plan = metadata.plan;
+        if (!plan && customFields.length > 0) {
+          const planField = customFields.find(f => f.variable_name === 'plan');
+          plan = planField?.value;
+        }
         
         console.log('📋 Payment metadata:', metadata);
+        console.log('📋 Custom fields:', customFields);
         console.log('📋 Selected plan:', plan);
 
         if (!plan) {
           console.error('❌ Missing plan in payment response');
-          showError('Payment successful but plan information is missing. Please contact support with reference: ' + paymentRef);
-          return;
+          console.error('Full verify data:', JSON.stringify(verifyData, null, 2));
+          
+          // ✅ Don't fail if we can get user's current plan from database
+          console.log('⚠️ Attempting to use plan from user profile...');
+          
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('subscription_plan')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          
+          if (profileData?.subscription_plan) {
+            plan = profileData.subscription_plan;
+            console.log('✅ Using plan from profile:', plan);
+          } else {
+            showError('Payment successful but plan information is missing. Please contact support with reference: ' + paymentRef);
+            return;
+          }
         }
 
         // ✅ STEP 5: Update profile with subscription details
