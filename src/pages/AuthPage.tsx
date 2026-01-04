@@ -1,4 +1,4 @@
-// TaxWiseWeb/src/pages/AuthPage.tsx (Fixed)
+// TaxWiseWeb/src/pages/AuthPage.tsx (FIXED - Step 1)
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -122,7 +122,6 @@ export default function AuthPage() {
         throw signUpError;
       }
 
-      // ✅ FIX: Check if user exists in data object
       if (!signUpData || !signUpData.user) {
         console.error('❌ No user returned from signup');
         throw new Error('Failed to create user account. Please try again.');
@@ -138,6 +137,7 @@ export default function AuthPage() {
         throw new Error('Session not established. Please try logging in.');
       }
 
+      // ✅ Create profile with all details
       const profileData: any = {
         user_id: userId,
         full_name: `${firstName.trim()} ${lastName.trim()}`,
@@ -150,11 +150,17 @@ export default function AuthPage() {
         updated_at: new Date().toISOString()
       };
 
+      // ✅ Always store company details (empty for individual)
       if (selectedPlan !== 'individual') {
         profileData.company_name = companyName.trim();
         profileData.company_size = companySize;
         profileData.job_title = jobTitle.trim();
         profileData.is_company_rep = isCompanyRep;
+      } else {
+        profileData.company_name = null;
+        profileData.company_size = null;
+        profileData.job_title = null;
+        profileData.is_company_rep = false;
       }
 
       console.log('🔵 Creating profile:', profileData);
@@ -173,6 +179,7 @@ export default function AuthPage() {
 
       console.log('✅ Profile created successfully');
 
+      // ✅ User is now logged in and profile exists - proceed to payment
       await initiatePayment(userId, email.trim(), session.access_token);
 
     } catch (error: any) {
@@ -195,22 +202,32 @@ export default function AuthPage() {
         throw new Error("Invalid plan selected");
       }
 
+      // ✅ CRITICAL: Include ALL metadata so callback has complete info
       const paymentData: any = {
         email: userEmail,
         amount: plan.rawPrice,
         plan: selectedPlan,
+        user_id: userId, // ✅ Add user_id to metadata
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        callback_url: 'https://taxwise.com.ng/payment-callback.html'
+        callback_url: `${window.location.origin}/payment-callback.html`
       };
 
+      // ✅ Always include company details in metadata (even if empty for individual)
       if (selectedPlan !== 'individual') {
         paymentData.company_name = companyName.trim();
         paymentData.company_size = companySize;
         paymentData.job_title = jobTitle.trim();
+        paymentData.is_company_rep = isCompanyRep;
+      } else {
+        // For individual plans, set empty strings
+        paymentData.company_name = '';
+        paymentData.company_size = '';
+        paymentData.job_title = '';
+        paymentData.is_company_rep = false;
       }
 
-      console.log('🔵 Payment data:', paymentData);
+      console.log('🔵 Payment data (with metadata):', paymentData);
 
       const { data, error } = await supabase.functions.invoke('initialize-payment', {
         body: paymentData,
@@ -236,6 +253,9 @@ export default function AuthPage() {
       }
 
       console.log('✅ Redirecting to Paystack...');
+      console.log('✅ User will remain logged in during payment');
+      
+      // ✅ User stays logged in - session persists through redirect
       window.location.href = data.data.authorization_url;
 
     } catch (error: any) {
@@ -247,13 +267,8 @@ export default function AuthPage() {
         variant: 'destructive' 
       });
 
-      setTimeout(() => {
-        toast({
-          title: 'Redirecting',
-          description: 'Taking you to pricing page to retry payment',
-        });
-        navigate('/pricing');
-      }, 2000);
+      // Don't redirect immediately - let user see the error
+      setLocalProcessing(false);
     }
   };
 
