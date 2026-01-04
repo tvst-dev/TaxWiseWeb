@@ -1,4 +1,4 @@
-// src/pages/Dashboard.tsx
+// src/pages/Dashboard.tsx (FIXED - Uses profiles table consistently)
 import { useState, useEffect, useCallback } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,6 @@ interface TaxCalculation {
 interface Subscription {
   tier: string;
   status: string;
-  is_legacy_user: boolean | null;
   current_period_end: string | null;
 }
 
@@ -44,32 +43,84 @@ export default function Dashboard() {
 
   const checkSubscriptionAccess = useCallback(async () => {
     try {
+      console.log('🔍 Dashboard checking subscription for user:', user?.id);
+
+      // ✅ FIX: Use profiles table (same as ProtectedRoute and payment callback)
       const { data, error } = await supabase
         .from('profiles')
         .select('subscription_plan, subscription_status, subscription_end')
         .eq('user_id', user?.id)
         .maybeSingle();
 
-      if (error) throw error;
-      setSubscription(data);
+      console.log('📊 Dashboard subscription data:', data);
 
-      if (data.is_legacy_user) return;
+      if (error) {
+        console.error('❌ Error checking subscription:', error);
+        return;
+      }
 
-      if (data.status !== 'active') {
-        toast({ title: 'Subscription Required', description: 'Please renew.', variant: 'destructive' });
+      if (!data) {
+        console.log('⚠️ No profile found');
+        toast({ 
+          title: 'Subscription Required', 
+          description: 'Please complete payment to access dashboard.', 
+          variant: 'destructive' 
+        });
         navigate('/pricing');
         return;
       }
 
-      if (data.current_period_end && new Date(data.current_period_end) < new Date()) {
-        toast({ title: 'Expired', description: 'Subscription expired.', variant: 'destructive' });
+      setSubscription({
+        tier: data.subscription_plan || 'individual',
+        status: data.subscription_status || 'pending',
+        current_period_end: data.subscription_end
+      });
+
+      // ✅ Check if subscription is active
+      if (data.subscription_status !== 'active') {
+        console.log('⚠️ Subscription not active:', data.subscription_status);
+        toast({ 
+          title: 'Subscription Required', 
+          description: 'Please complete payment to access dashboard.', 
+          variant: 'destructive' 
+        });
         navigate('/pricing');
         return;
       }
+
+      // ✅ Check if subscription has expired
+      if (data.subscription_end) {
+        const endDate = new Date(data.subscription_end);
+        const now = new Date();
+        
+        if (now > endDate) {
+          console.log('⏰ Subscription expired');
+          toast({ 
+            title: 'Subscription Expired', 
+            description: 'Please renew your subscription.', 
+            variant: 'destructive' 
+          });
+          
+          // Update status in database
+          await supabase
+            .from('profiles')
+            .update({
+              subscription_status: 'expired',
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', user?.id);
+          
+          navigate('/pricing');
+          return;
+        }
+      }
+
+      console.log('✅ Dashboard access granted');
+
     } catch (error) {
-      console.error('Error checking subscription:', error);
+      console.error('❌ Error checking subscription:', error);
     }
-  }, [navigate]);
+  }, [user?.id, navigate]);
 
   useEffect(() => {
     if (user) {
@@ -96,7 +147,12 @@ export default function Dashboard() {
 
       setEntries(formattedEntries);
     } catch (error) {
-      toast({ title: 'Error', description: 'Failed to fetch entries', variant: 'destructive' });
+      console.error('Error fetching entries:', error);
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to fetch entries', 
+        variant: 'destructive' 
+      });
     } finally {
       setLoading(false);
     }
@@ -112,13 +168,19 @@ export default function Dashboard() {
       if (error) throw error;
       setTaxCalculations(data || []);
     } catch (error) {
-      toast({ title: 'Error', description: 'Failed to fetch calculations', variant: 'destructive' });
+      console.error('Error fetching calculations:', error);
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to fetch calculations', 
+        variant: 'destructive' 
+      });
     }
   };
 
   const handleSignOut = async () => {
     await signOut();
     toast({ title: 'Signed out', description: 'Successfully signed out.' });
+    navigate('/auth');
   };
 
   if (!user) return <Navigate to="/auth" replace />;
@@ -151,13 +213,14 @@ export default function Dashboard() {
             <p className="text-muted-foreground">Nigeria Tax Management System</p>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={() => navigate('/subscription')}>
+            {subscription && (
+              <Badge variant="secondary" className="text-sm">
+                {subscription.tier.replace('_', ' ').toUpperCase()} Plan
+              </Badge>
+            )}
+            <Button variant="outline" onClick={() => navigate('/pricing')}>
               <CreditCard className="h-5 w-5 mr-2" />
-              Subscription
-            </Button>
-            <Button variant="default" onClick={() => navigate('/pricing')}>
-              <Zap className="h-5 w-5 mr-2" />
-              Upgrade
+              Manage Plan
             </Button>
             <Button variant="ghost" size="icon" onClick={() => setShowPreferences(true)}>
               <Settings className="h-4 w-4" />
@@ -227,10 +290,6 @@ export default function Dashboard() {
               </Button>
             </div>
 
-            {/* 
-               FIX: We map the 'earnings' type back to 'earning' to satisfy EntryList props 
-               without using 'as any'.
-            */}
             <EntryList
               entries={entries.map(e => ({
                 ...e,
