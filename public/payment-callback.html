@@ -1,261 +1,345 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payment Successful - TaxWise Nigeria</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Processing Payment - TaxWise</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #0A0A0A 0%, #1a1a1a 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
 
-        .container {
-            background: white;
-            border-radius: 24px;
-            padding: 48px 32px;
-            max-width: 480px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      text-align: center;
+    }
 
-        .success-icon {
-            width: 80px;
-            height: 80px;
-            background: #16A34A;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 24px;
-            animation: scaleIn 0.5s ease-out;
-        }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 30px;
+    }
 
-        .success-icon svg {
-            width: 40px;
-            height: 40px;
-            color: white;
-        }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
 
-        @keyframes scaleIn {
-            0% { transform: scale(0); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
+    .success-icon {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 20px;
+      background: #10b981;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      color: white;
+    }
 
-        h1 {
-            font-size: 28px;
-            font-weight: 700;
-            color: #0A0A0A;
-            margin-bottom: 12px;
-            letter-spacing: -0.5px;
-        }
+    .error-icon {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 20px;
+      background: #ef4444;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      color: white;
+    }
 
-        .subtitle {
-            font-size: 16px;
-            color: #525252;
-            margin-bottom: 32px;
-            line-height: 1.5;
-        }
+    h1 {
+      color: #1f2937;
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
 
-        .reference {
-            background: #F5F5F5;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 32px;
-        }
+    p {
+      color: #6b7280;
+      font-size: 16px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
 
-        .reference-label {
-            font-size: 12px;
-            color: #737373;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
-        }
+    .details {
+      background: #f9fafb;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px 0;
+      text-align: left;
+    }
 
-        .reference-value {
-            font-size: 14px;
-            color: #0A0A0A;
-            font-family: 'Courier New', monospace;
-            font-weight: 600;
-            word-break: break-all;
-        }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
 
-        .btn {
-            display: inline-block;
-            width: 100%;
-            padding: 16px 32px;
-            background: #0A0A0A;
-            color: white;
-            text-decoration: none;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            border: none;
-            cursor: pointer;
-        }
+    .detail-row:last-child {
+      border-bottom: none;
+    }
 
-        .btn:hover {
-            background: #262626;
-            transform: translateY(-2px);
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-        }
+    .detail-label {
+      font-weight: 600;
+      color: #374151;
+    }
 
-        .btn:active {
-            transform: translateY(0);
-        }
+    .detail-value {
+      color: #6b7280;
+    }
 
-        .info-text {
-            margin-top: 24px;
-            font-size: 13px;
-            color: #737373;
-            line-height: 1.6;
-        }
+    .btn {
+      display: inline-block;
+      padding: 12px 30px;
+      background: #667eea;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: background 0.3s;
+      margin-top: 20px;
+    }
 
-        .loading {
-            display: none;
-            margin-top: 16px;
-        }
+    .btn:hover {
+      background: #5568d3;
+    }
 
-        .spinner {
-            border: 3px solid #E5E5E5;
-            border-top: 3px solid #0A0A0A;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
+    .error-details {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 20px 0;
+      text-align: left;
+      color: #991b1b;
+      font-size: 14px;
+    }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .email-notice {
-            background: #EFF6FF;
-            border-left: 4px solid #3B82F6;
-            padding: 16px;
-            border-radius: 8px;
-            margin-top: 24px;
-            text-align: left;
-        }
-
-        .email-notice p {
-            font-size: 13px;
-            color: #1E3A8A;
-            line-height: 1.6;
-        }
-
-        @media (max-width: 480px) {
-            .container {
-                padding: 32px 24px;
-            }
-
-            h1 {
-                font-size: 24px;
-            }
-
-            .subtitle {
-                font-size: 14px;
-            }
-        }
-    </style>
+    #status-text {
+      font-size: 14px;
+      color: #6b7280;
+      margin-top: 10px;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="success-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-            </svg>
-        </div>
+  <div class="container">
+    <div class="spinner" id="spinner"></div>
+    <h1 id="title">Processing Payment...</h1>
+    <p id="message">Please wait while we verify your payment</p>
+    <div id="status-text"></div>
+    <div id="details" class="details" style="display:none;"></div>
+    <div id="error-details" class="error-details" style="display:none;"></div>
+    <a href="/dashboard" id="dashboard-btn" class="btn" style="display:none;">Go to Dashboard</a>
+    <a href="/pricing" id="pricing-btn" class="btn" style="display:none;">Return to Pricing</a>
+  </div>
 
-        <h1>Payment Successful!</h1>
-        <p class="subtitle">Your subscription has been activated. Welcome to TaxWise Nigeria!</p>
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-        <div class="reference">
-            <div class="reference-label">Transaction Reference</div>
-            <div class="reference-value" id="reference">Loading...</div>
-        </div>
+    // Initialize Supabase
+    const supabaseUrl = 'YOUR_SUPABASE_URL'; // Replace with your actual URL
+    const supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY'; // Replace with your actual key
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-        <button class="btn" onclick="openApp()">
-            Continue in App
-        </button>
+    // Helper functions
+    function showSuccess(message, details = {}) {
+      document.getElementById('spinner').style.display = 'none';
+      document.getElementById('title').innerHTML = '<div class="success-icon">✓</div>Payment Successful!';
+      document.getElementById('message').textContent = message;
+      
+      if (Object.keys(details).length > 0) {
+        const detailsDiv = document.getElementById('details');
+        detailsDiv.style.display = 'block';
+        detailsDiv.innerHTML = Object.entries(details).map(([key, value]) => `
+          <div class="detail-row">
+            <span class="detail-label">${key}:</span>
+            <span class="detail-value">${value}</span>
+          </div>
+        `).join('');
+      }
+      
+      document.getElementById('dashboard-btn').style.display = 'inline-block';
+      
+      // Auto-redirect after 3 seconds
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 3000);
+    }
 
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-        </div>
+    function showError(message, errorDetails = null) {
+      document.getElementById('spinner').style.display = 'none';
+      document.getElementById('title').innerHTML = '<div class="error-icon">✕</div>Payment Failed';
+      document.getElementById('message').textContent = message;
+      
+      if (errorDetails) {
+        const errorDiv = document.getElementById('error-details');
+        errorDiv.style.display = 'block';
+        errorDiv.textContent = `Error: ${errorDetails}`;
+      }
+      
+      document.getElementById('pricing-btn').style.display = 'inline-block';
+    }
 
-        <div class="email-notice">
-            <p><strong>Email Confirmation:</strong> A receipt has been sent to your email address.</p>
-        </div>
+    function updateStatus(text) {
+      document.getElementById('status-text').textContent = text;
+    }
 
-        <p class="info-text">
-            If the app doesn't open automatically, please open TaxWise manually from your home screen.
-        </p>
-    </div>
+    async function verifyPayment() {
+      try {
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const reference = urlParams.get('reference');
+        const trxref = urlParams.get('trxref');
 
-    <script>
-        function getQueryParam(param) {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get(param);
+        console.log('🔍 Payment Callback - Reference:', reference || trxref);
+
+        if (!reference && !trxref) {
+          showError('No payment reference found. Please try again.');
+          return;
         }
 
-        const reference = getQueryParam('reference') || getQueryParam('trxref');
+        const paymentRef = reference || trxref;
+        updateStatus('Verifying payment with Paystack...');
+
+        // ✅ STEP 1: Get current user session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
-        if (reference) {
-            document.getElementById('reference').textContent = reference;
+        if (sessionError || !session) {
+          console.error('❌ Session error:', sessionError);
+          showError('Session expired. Please log in and try again.');
+          setTimeout(() => window.location.href = '/auth', 2000);
+          return;
         }
 
-        function openApp() {
-            const btn = document.querySelector('.btn');
-            const loading = document.getElementById('loading');
-            
-            btn.textContent = 'Opening app...';
-            btn.disabled = true;
-            loading.style.display = 'block';
+        console.log('✅ User session found:', session.user.id);
+        updateStatus('Verifying payment...');
 
-            const deepLink = `taxwise://payment-success?reference=${reference}`;
-            const universalLink = `https://taxwise.com.ng/payment-success?reference=${reference}`;
-            
-            window.location.href = deepLink;
-            
-            setTimeout(() => {
-                window.location.href = universalLink;
-            }, 1500);
+        // ✅ STEP 2: Call edge function to verify payment
+        const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-payment', {
+          body: { reference: paymentRef },
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
 
-            setTimeout(() => {
-                btn.textContent = 'App Not Installed?';
-                btn.disabled = false;
-                loading.style.display = 'none';
-                btn.onclick = () => {
-                    alert('Please install TaxWise from the Play Store or App Store');
-                };
-            }, 3000);
+        console.log('📊 Verify response:', verifyData);
+
+        if (verifyError) {
+          console.error('❌ Verification error:', verifyError);
+          showError('Payment verification failed', verifyError.message);
+          return;
         }
 
-        window.onload = () => {
-            setTimeout(() => {
-                const shouldAutoOpen = confirm('Payment successful! Open TaxWise app now?');
-                if (shouldAutoOpen) {
-                    openApp();
-                }
-            }, 1000);
+        if (!verifyData || !verifyData.status) {
+          console.error('❌ Verification failed:', verifyData);
+          showError(verifyData?.message || 'Payment verification failed. Please contact support.');
+          return;
+        }
+
+        // ✅ STEP 3: Check if payment was successful
+        if (verifyData.data.status !== 'success') {
+          console.log('⚠️ Payment not successful:', verifyData.data.status);
+          showError(`Payment ${verifyData.data.status}. Please try again.`);
+          return;
+        }
+
+        console.log('✅ Payment successful!');
+        updateStatus('Activating your subscription...');
+
+        // ✅ STEP 4: Extract metadata from Paystack response
+        const metadata = verifyData.data.metadata || {};
+        const plan = metadata.plan || metadata.custom_fields?.find(f => f.variable_name === 'plan')?.value;
+        
+        console.log('📋 Payment metadata:', metadata);
+        console.log('📋 Selected plan:', plan);
+
+        if (!plan) {
+          console.error('❌ Missing plan in payment response');
+          showError('Payment successful but plan information is missing. Please contact support with reference: ' + paymentRef);
+          return;
+        }
+
+        // ✅ STEP 5: Update profile with subscription details
+        const updateData = {
+          subscription_status: 'active',
+          subscription_plan: plan,
+          onboarding_status: 'active',
+          subscription_start: new Date().toISOString(),
+          subscription_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+          payment_reference: paymentRef,
+          updated_at: new Date().toISOString()
         };
-    </script>
+
+        // ✅ Add company details if present in metadata
+        if (metadata.company_name) {
+          updateData.company_name = metadata.company_name;
+        }
+        if (metadata.company_size) {
+          updateData.company_size = metadata.company_size;
+        }
+        if (metadata.job_title) {
+          updateData.job_title = metadata.job_title;
+        }
+        if (metadata.is_company_rep !== undefined) {
+          updateData.is_company_rep = metadata.is_company_rep;
+        }
+
+        console.log('📝 Updating profile with:', updateData);
+
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update(updateData)
+          .eq('user_id', session.user.id);
+
+        if (updateError) {
+          console.error('❌ Profile update error:', updateError);
+          showError('Payment successful but failed to activate subscription. Please contact support.', updateError.message);
+          return;
+        }
+
+        console.log('✅ Profile updated successfully!');
+
+        // ✅ Success!
+        showSuccess('Your subscription has been activated!', {
+          'Plan': plan.replace('_', ' ').toUpperCase(),
+          'Amount': `₦${(verifyData.data.amount / 100).toLocaleString()}`,
+          'Reference': paymentRef
+        });
+
+      } catch (error) {
+        console.error('❌ Payment verification error:', error);
+        showError('An error occurred while processing your payment', error.message);
+      }
+    }
+
+    // Start verification when page loads
+    verifyPayment();
+  </script>
 </body>
 </html>
