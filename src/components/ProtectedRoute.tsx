@@ -27,29 +27,24 @@ export default function ProtectedRoute({
       }
 
       try {
-        // Force a fresh query with no cache
+        // Use profiles table (same as mobile app)
         const { data, error } = await supabase
-          .from('api_subscriptions')
-          .select('status, is_legacy_user')
+          .from('profiles')
+          .select('subscription_status, onboarding_status')
           .eq('user_id', user.id)
-          .maybeSingle(); // Use maybeSingle() instead of single() to avoid errors
+          .maybeSingle();
 
         if (error) {
           console.error('Error fetching subscription:', error);
           setSubscriptionStatus('pending');
         } else if (!data) {
-          // No subscription found
-          console.log('No subscription found, setting to pending');
+          console.log('No profile found, setting to pending');
           setSubscriptionStatus('pending');
         } else {
-          // Legacy users always have access
-          if (data.is_legacy_user) {
-            console.log('Legacy user detected, granting access');
-            setSubscriptionStatus('active');
-          } else {
-            console.log('Subscription status:', data.status);
-            setSubscriptionStatus(data.status || 'pending');
-          }
+          // Check subscription status from profiles table
+          const status = data.subscription_status || 'pending';
+          console.log('Profile subscription status:', status);
+          setSubscriptionStatus(status);
         }
       } catch (error) {
         console.error('Subscription check error:', error);
