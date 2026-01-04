@@ -1,4 +1,4 @@
-// src/pages/DeveloperPortal.tsx
+// src/pages/DeveloperPortal.tsx (FIXED)
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,13 +44,29 @@ export default function DeveloperPortal() {
   }, [user]);
 
   const checkSubscription = async () => {
-    const { data } = await supabase
-      .from('api_subscriptions')
-      .select('tier')
-      .single();
+    try {
+      // ✅ Use profiles table instead of api_subscriptions
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('subscription_plan, subscription_status')
+        .eq('user_id', user?.id)
+        .maybeSingle();
 
-    setSubscription(data);
-    setCheckingAccess(false);
+      if (error) {
+        console.error('Error fetching subscription:', error);
+        setCheckingAccess(false);
+        return;
+      }
+
+      if (data && data.subscription_status === 'active') {
+        setSubscription({ tier: data.subscription_plan || 'individual' });
+      }
+      
+      setCheckingAccess(false);
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      setCheckingAccess(false);
+    }
   };
 
   const fetchApiKeys = async () => {
@@ -95,7 +111,7 @@ export default function DeveloperPortal() {
       name: newKeyName,
       key_hash: randomKey,
       prefix: keyPrefix,
-      subscription_tier: subscription?.tier || 'free',
+      subscription_tier: subscription?.tier || 'individual',
     });
 
     setLoading(false);
@@ -147,9 +163,22 @@ export default function DeveloperPortal() {
   };
 
   const rateLimits = {
-    individuals: '1,000 requests/month',
-    small_businesses: '10,000 requests/month',
-    large_corporations: '100,000 requests/month',
+    individual: '1,000 requests/month',
+    small_business: '10,000 requests/month',
+    large_corporation: '100,000 requests/month',
+  };
+
+  // Helper to determine upgrade/switch text
+  const getPlanButtonText = (targetTier: string) => {
+    if (!subscription) return 'Upgrade';
+    
+    const planOrder = { individual: 1, small_business: 2, large_corporation: 3 };
+    const currentOrder = planOrder[subscription.tier as keyof typeof planOrder] || 0;
+    const targetOrder = planOrder[targetTier as keyof typeof planOrder] || 0;
+    
+    if (targetOrder > currentOrder) return 'Upgrade';
+    if (targetOrder < currentOrder) return 'Switch';
+    return 'Switch';
   };
 
   if (checkingAccess) {
@@ -181,7 +210,7 @@ export default function DeveloperPortal() {
               <Code className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
               <h1 className="text-3xl font-bold mb-2">Developer API Access</h1>
               <p className="text-muted-foreground text-lg">
-                Upgrade to Pro or Enterprise to access our powerful Tax Calculation API
+                Upgrade to a paid plan to access our powerful Tax Calculation API
               </p>
             </div>
 
@@ -249,14 +278,14 @@ export default function DeveloperPortal() {
             </p>
           </div>
           <Badge variant="secondary" className="text-lg px-4 py-2">
-            {subscription.tier.toUpperCase()} Plan
+            {subscription.tier.replace('_', ' ').toUpperCase()} Plan
           </Badge>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 mb-8">
-          <Card>
+        <div className="grid gap-6 md:grid-cols-3 mb-8">
+          <Card className={subscription.tier === 'individual' ? 'ring-2 ring-primary' : ''}>
             <CardHeader>
-              <CardTitle>Individuals Tier</CardTitle>
+              <CardTitle>Individual</CardTitle>
               <CardDescription>Perfect for testing and small projects</CardDescription>
             </CardHeader>
             <CardContent>
@@ -267,13 +296,26 @@ export default function DeveloperPortal() {
                   <li>✓ Basic tax calculations</li>
                   <li>✓ Community support</li>
                 </ul>
+                {subscription.tier === 'individual' ? (
+                  <Badge variant="secondary" className="w-full justify-center mt-4">
+                    Current Plan
+                  </Badge>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    className="w-full mt-4"
+                    onClick={() => navigate('/pricing')}
+                  >
+                    {getPlanButtonText('individual')}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={subscription.tier === 'small_business' ? 'ring-2 ring-primary' : ''}>
             <CardHeader>
-              <CardTitle>Small Businesses Tier</CardTitle>
+              <CardTitle>Small Business</CardTitle>
               <CardDescription>For production applications</CardDescription>
             </CardHeader>
             <CardContent>
@@ -284,9 +326,49 @@ export default function DeveloperPortal() {
                   <li>✓ Advanced calculations</li>
                   <li>✓ Priority support</li>
                 </ul>
-                <Button variant="outline" className="w-full mt-4">
-                  Upgrade to Small Businesses
-                </Button>
+                {subscription.tier === 'small_business' ? (
+                  <Badge variant="secondary" className="w-full justify-center mt-4">
+                    Current Plan
+                  </Badge>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    className="w-full mt-4"
+                    onClick={() => navigate('/pricing')}
+                  >
+                    {getPlanButtonText('small_business')}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={subscription.tier === 'large_corporation' ? 'ring-2 ring-primary' : ''}>
+            <CardHeader>
+              <CardTitle>Large Corporation</CardTitle>
+              <CardDescription>For enterprise scale</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <p className="text-2xl font-bold">₦100.00/month</p>
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  <li>✓ 100,000 requests/month</li>
+                  <li>✓ Full API access</li>
+                  <li>✓ Dedicated support</li>
+                </ul>
+                {subscription.tier === 'large_corporation' ? (
+                  <Badge variant="secondary" className="w-full justify-center mt-4">
+                    Current Plan
+                  </Badge>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    className="w-full mt-4"
+                    onClick={() => navigate('/pricing')}
+                  >
+                    {getPlanButtonText('large_corporation')}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
