@@ -190,7 +190,7 @@ export default function PricingPage() {
     {
       name: 'Large Corporations',
       tier: 'large_corporation',
-      price: '₦49,999.90',
+      price: '₦100.00',
       period: 'per month',
       icon: Building2,
       description: 'For large organizations',
