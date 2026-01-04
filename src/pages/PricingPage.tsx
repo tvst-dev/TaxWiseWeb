@@ -455,7 +455,16 @@ export default function PricingPage() {
                           : hasPendingPayment
                             ? 'Switch & Pay'
                             : hasActiveSubscription
-                              ? 'Upgrade'
+                              ? (() => {
+                                  // Determine if upgrade, downgrade, or switch
+                                  const planOrder = { individual: 1, small_business: 2, large_corporation: 3 };
+                                  const currentOrder = planOrder[subscription?.tier as keyof typeof planOrder] || 0;
+                                  const targetOrder = planOrder[plan.tier as keyof typeof planOrder] || 0;
+                                  
+                                  if (targetOrder > currentOrder) return 'Upgrade';
+                                  if (targetOrder < currentOrder) return 'Downgrade';
+                                  return 'Switch Plan';
+                                })()
                               : plan.cta
                     }
                   </Button>
