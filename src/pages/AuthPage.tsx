@@ -44,7 +44,7 @@ export default function AuthPage() {
     {
       id: 'individual',
       name: 'Individual',
-      price: '₦1499.90',
+      price: '₦1,499.90',
       rawPrice: 149990,
       description: 'Perfect for freelancers',
       icon: <User className="h-4 w-4" />
@@ -60,7 +60,7 @@ export default function AuthPage() {
     {
       id: 'large_corporation',
       name: 'Large Corp',
-      price: '₦49999.90',
+      price: '₦49,999.90',
       rawPrice: 4999990,
       description: 'For organizations',
       icon: <Building2 className="h-4 w-4" />
