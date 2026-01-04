@@ -1,4 +1,4 @@
-// TaxWiseWeb/src/pages/AuthPage.tsx
+// TaxWiseWeb/src/pages/AuthPage.tsx (Alternative - Direct Supabase approach)
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2, CheckCircle, ArrowLeft, Building2, User } from 'lucide-react';
 
 export default function AuthPage() {
-  const { user, signIn, signUp, loading: authLoading } = useAuth();
+  const { user, signIn, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   
   // UI States
@@ -74,18 +74,32 @@ export default function AuthPage() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate basic fields
     if (!firstName || !lastName || !email || !password) {
-      toast({ title: 'Error', description: 'Please fill all basic fields', variant: 'destructive' });
+      toast({ 
+        title: 'Error', 
+        description: 'Please fill all basic fields', 
+        variant: 'destructive' 
+      });
       return;
     }
 
+    // Validate business fields for non-individual plans
     if (selectedPlan !== 'individual') {
       if (!companyName || !companySize || !jobTitle) {
-        toast({ title: 'Error', description: 'Please fill all company details', variant: 'destructive' });
+        toast({ 
+          title: 'Error', 
+          description: 'Please fill all company details', 
+          variant: 'destructive' 
+        });
         return;
       }
       if (!isCompanyRep) {
-        toast({ title: 'Error', description: 'Please confirm you have authority', variant: 'destructive' });
+        toast({ 
+          title: 'Error', 
+          description: 'Please confirm authorization', 
+          variant: 'destructive' 
+        });
         return;
       }
     }
@@ -93,61 +107,97 @@ export default function AuthPage() {
     setLocalProcessing(true);
 
     try {
-      const { data: authData, error: signUpError } = await signUp(email, password, {
-        first_name: firstName,
-        last_name: lastName,
-        plan_tier: selectedPlan
+      console.log('🔵 Starting signup process...');
+      
+      // Direct Supabase signup
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            plan_tier: selectedPlan
+          }
+        }
       });
 
-      if (signUpError) throw signUpError;
-      if (!authData.user) throw new Error('User creation failed');
+      console.log('🔵 Signup response:', signUpData);
 
-      const profileUpdates: any = {
-        user_id: authData.user.id,
+      if (signUpError) {
+        console.error('❌ Signup error:', signUpError);
+        throw signUpError;
+      }
+
+      if (!signUpData.user) {
+        console.error('❌ No user returned from signup');
+        throw new Error('Failed to create user account');
+      }
+
+      const userId = signUpData.user.id;
+      console.log('✅ User created:', userId);
+
+      // Create/update profile using service role (bypass RLS)
+      const profileData: any = {
+        user_id: userId,
         full_name: `${firstName} ${lastName}`,
+        email: email,
         account_type: selectedPlan === 'individual' ? 'individual' : 'corporate',
+        subscription_status: 'pending',
+        subscription_plan: selectedPlan,
+        onboarding_status: 'pending',
+        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
       if (selectedPlan !== 'individual') {
-        profileUpdates.company_name = companyName;
-        profileUpdates.company_size = companySize;
-        profileUpdates.job_title = jobTitle;
-        profileUpdates.is_company_rep = isCompanyRep;
+        profileData.company_name = companyName;
+        profileData.company_size = companySize;
+        profileData.job_title = jobTitle;
+        profileData.is_company_rep = isCompanyRep;
       }
 
-      const { error: profileError } = await supabase.from('profiles').upsert(profileUpdates);
-      if (profileError) throw new Error('Failed to save profile');
+      console.log('🔵 Creating profile:', profileData);
 
-      await handlePayment(authData.user.id, email);
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert(profileData, {
+          onConflict: 'user_id',
+          ignoreDuplicates: false
+        });
+
+      if (profileError) {
+        console.error('❌ Profile error:', profileError);
+        throw new Error(`Profile creation failed: ${profileError.message}`);
+      }
+
+      console.log('✅ Profile created successfully');
+
+      // Now initiate payment
+      await initiatePayment(userId, email);
+
     } catch (error: any) {
-      console.error('Sign up error:', error);
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      console.error('❌ Signup process failed:', error);
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to create account', 
+        variant: 'destructive' 
+      });
     } finally {
       setLocalProcessing(false);
     }
   };
 
-  const handlePayment = async (userId: string, userEmail: string) => {
+  const initiatePayment = async (userId: string, userEmail: string) => {
     try {
-      // Verify session exists
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        toast({ 
-          title: "Account Created", 
-          description: "Please check your email to confirm your account before payment." 
-        });
-        return;
-      }
+      console.log('🔵 Initiating payment...');
 
       const plan = plans.find(p => p.id === selectedPlan);
       if (!plan) {
         throw new Error("Invalid plan selected");
       }
 
-      // Prepare payment data with all required information
-      const paymentBody: any = {
+      const paymentData: any = {
         email: userEmail,
         amount: plan.rawPrice,
         plan: selectedPlan,
@@ -156,46 +206,58 @@ export default function AuthPage() {
         userId: userId
       };
 
-      // Add company information for business plans
       if (selectedPlan !== 'individual') {
-        paymentBody.companyName = companyName;
-        paymentBody.companySize = companySize;
-        paymentBody.jobTitle = jobTitle;
+        paymentData.companyName = companyName;
+        paymentData.companySize = companySize;
+        paymentData.jobTitle = jobTitle;
       }
 
-      console.log('Initiating payment with data:', paymentBody);
+      console.log('🔵 Payment data:', paymentData);
 
       const { data, error } = await supabase.functions.invoke('initialize-payment', {
-        body: paymentBody
+        body: paymentData
       });
 
+      console.log('🔵 Payment response:', data);
+
       if (error) {
-        console.error('Payment initialization error:', error);
+        console.error('❌ Payment error:', error);
         throw new Error(error.message || "Payment initialization failed");
       }
 
-      if (!data || !data.status) {
-        console.error('Payment response:', data);
-        throw new Error(data?.message || "Invalid payment response");
+      if (!data) {
+        throw new Error("No response from payment service");
       }
 
-      // Redirect to Paystack
-      if (data.data?.authorization_url) {
-        window.location.href = data.data.authorization_url;
-      } else {
-        throw new Error("Payment URL not received");
+      if (!data.status) {
+        throw new Error(data.message || "Payment initialization failed");
       }
+
+      if (!data.data || !data.data.authorization_url) {
+        console.error('❌ No authorization URL:', data);
+        throw new Error("Payment URL not received from Paystack");
+      }
+
+      console.log('✅ Redirecting to Paystack...');
+      
+      // Redirect to Paystack
+      window.location.href = data.data.authorization_url;
 
     } catch (error: any) {
-      console.error('Payment error:', error);
+      console.error('❌ Payment initialization failed:', error);
+      
       toast({ 
         title: 'Payment Error', 
-        description: error.message || 'Failed to initialize payment. Please try again from the pricing page.', 
+        description: error.message || 'Failed to initialize payment', 
         variant: 'destructive' 
       });
-      
-      // Redirect to pricing page so user can try payment again
+
+      // Wait a bit then redirect to pricing
       setTimeout(() => {
+        toast({
+          title: 'Redirecting',
+          description: 'Taking you to pricing page to retry payment',
+        });
         navigate('/pricing');
       }, 2000);
     }
@@ -204,28 +266,52 @@ export default function AuthPage() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      toast({ title: 'Error', description: 'Please enter email and password', variant: 'destructive' });
+      toast({ 
+        title: 'Error', 
+        description: 'Please enter email and password', 
+        variant: 'destructive' 
+      });
       return;
     }
+    
     setLocalProcessing(true);
     const { error } = await signIn(email, password);
     setLocalProcessing(false);
-    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    
+    if (error) {
+      toast({ 
+        title: 'Error', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+    }
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
-      toast({ title: 'Error', description: 'Please enter your email', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: 'Please enter your email address',
+        variant: 'destructive'
+      });
       return;
     }
+    
     try {
       const redirectUrl = `${window.location.origin}/reset-password`;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { 
+        redirectTo: redirectUrl 
+      });
+      
       if (error) throw error;
       setForgotPasswordSuccess(true);
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ 
+        title: 'Error', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
     }
   };
 
@@ -239,10 +325,14 @@ export default function AuthPage() {
             <CardDescription>We've sent a password reset link to {email}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" className="w-full" onClick={() => {
-              setForgotPasswordSuccess(false);
-              setIsForgotPassword(false);
-            }}>
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              onClick={() => {
+                setForgotPasswordSuccess(false);
+                setIsForgotPassword(false);
+              }}
+            >
               Back to Login
             </Button>
           </CardContent>
