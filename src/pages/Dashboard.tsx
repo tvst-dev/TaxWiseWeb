@@ -45,9 +45,10 @@ export default function Dashboard() {
   const checkSubscriptionAccess = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('api_subscriptions')
-        .select('tier, status, is_legacy_user, current_period_end')
-        .single();
+        .from('profiles')
+        .select('subscription_plan, subscription_status, subscription_end')
+        .eq('user_id', user?.id)
+        .maybeSingle();
 
       if (error) throw error;
       setSubscription(data);
