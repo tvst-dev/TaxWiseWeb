@@ -64,8 +64,8 @@ export default function AuthPage() {
     {
       id: 'large_corporation',
       name: 'Large Corp',
-      price: '₦49,999.90',
-      rawPrice: 4999990,
+      price: '₦100.00',
+      rawPrice: 10000,
       description: 'For organizations',
       icon: <Building2 className="h-4 w-4" />
     },
