@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, TrendingUp, TrendingDown, Calculator, Settings, LogOut, Zap, CreditCard } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Calculator, Settings, LogOut, Zap, CreditCard, Code } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { EntryForm } from '@/components/EntryForm';
 import { EntryList } from '@/components/EntryList';
@@ -218,6 +218,10 @@ export default function Dashboard() {
                 {subscription.tier.replace('_', ' ').toUpperCase()} Plan
               </Badge>
             )}
+            <Button variant="outline" onClick={() => navigate('/developer')}>
+              <Code className="h-5 w-5 mr-2" />
+              Developer
+            </Button>
             <Button variant="outline" onClick={() => navigate('/pricing')}>
               <CreditCard className="h-5 w-5 mr-2" />
               Manage Plan
