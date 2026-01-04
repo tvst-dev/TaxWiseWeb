@@ -10,26 +10,21 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, CreditCard, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-interface Subscription {
-  id: string;
-  tier: string;
-  status: string;
-  amount: number | null;
-  currency: string | null;
-  current_period_start: string | null;
-  current_period_end: string | null;
-  is_legacy_user: boolean | null;
-  created_at: string;
+interface Profile {
+  subscription_plan: string | null;
+  subscription_status: string | null;
+  subscription_start: string | null;
+  subscription_end: string | null;
+  last_payment_date: string | null;
 }
 
-interface PaymentTransaction {
+interface PaymentRecord {
   id: string;
-  paystack_reference: string;
+  reference: string;
   amount: number;
   currency: string | null;
   status: string;
-  plan_type: string;
-  paid_at: string | null;
+  plan: string;
   created_at: string;
 }
 
@@ -37,26 +32,38 @@ export default function SubscriptionPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user) {
-      fetchSubscription();
-      fetchTransactions();
+      fetchSubscriptionData();
     }
   }, [user]);
 
-  const fetchSubscription = async () => {
+  const fetchSubscriptionData = async () => {
     try {
-      const { data, error } = await supabase
-        .from('api_subscriptions')
-        .select('*')
-        .single();
+      // Fetch from profiles table (same as mobile app)
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('subscription_plan, subscription_status, subscription_start, subscription_end, last_payment_date')
+        .eq('user_id', user?.id)
+        .maybeSingle();
 
-      if (error) throw error;
-      setSubscription(data);
+      if (profileError) throw profileError;
+      setProfile(profileData);
+
+      // Fetch payment history
+      const { data: paymentsData, error: paymentsError } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+
+      if (paymentsError) throw paymentsError;
+      setPayments(paymentsData || []);
+
     } catch (error) {
       console.error('Error fetching subscription:', error);
       toast({
@@ -64,29 +71,16 @@ export default function SubscriptionPage() {
         description: 'Failed to load subscription details',
         variant: 'destructive',
       });
-    }
-  };
-
-  const fetchTransactions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('payment_transactions')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setTransactions(data || []);
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'active':
         return <Badge className="bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />Active</Badge>;
+      case 'cancelled':
       case 'canceled':
         return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Canceled</Badge>;
       case 'past_due':
@@ -98,8 +92,10 @@ export default function SubscriptionPage() {
     }
   };
 
-  const getPlanName = (tier: string) => {
-    switch (tier) {
+  const getPlanName = (plan: string | null) => {
+    if (!plan) return 'No Plan';
+    
+    switch (plan) {
       case 'individual':
         return 'Individual Plan';
       case 'small_business':
@@ -107,7 +103,20 @@ export default function SubscriptionPage() {
       case 'large_corporation':
         return 'Large Corporation Plan';
       default:
-        return tier;
+        return plan;
+    }
+  };
+
+  const getPlanPrice = (plan: string | null) => {
+    switch (plan) {
+      case 'individual':
+        return '₦1,499.90';
+      case 'small_business':
+        return '₦24,999.90';
+      case 'large_corporation':
+        return '₦49,999.90';
+      default:
+        return 'N/A';
     }
   };
 
@@ -118,7 +127,8 @@ export default function SubscriptionPage() {
     }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -135,6 +145,8 @@ export default function SubscriptionPage() {
       </div>
     );
   }
+
+  const isActive = profile?.subscription_status === 'active';
 
   return (
     <div className="min-h-screen bg-background">
@@ -161,53 +173,40 @@ export default function SubscriptionPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {subscription?.is_legacy_user ? (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle className="h-5 w-5 text-blue-600" />
-                    <h3 className="font-semibold text-blue-900">Grandfathered Account</h3>
-                  </div>
-                  <p className="text-blue-700">
-                    You have a grandfathered {getPlanName(subscription.tier)} with lifetime access.
-                    No payment is required.
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Plan</label>
+                  <p className="text-lg font-semibold">{getPlanName(profile?.subscription_plan)}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Status</label>
+                  <div className="mt-1">{getStatusBadge(profile?.subscription_status || 'pending')}</div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Monthly Amount</label>
+                  <p className="text-lg font-semibold">
+                    {getPlanPrice(profile?.subscription_plan)}
                   </p>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Plan</label>
-                    <p className="text-lg font-semibold">{getPlanName(subscription?.tier || '')}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Status</label>
-                    <div className="mt-1">{getStatusBadge(subscription?.status || '')}</div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Monthly Amount</label>
-                    <p className="text-lg font-semibold">
-                      {subscription?.amount ? formatCurrency(subscription.amount, subscription.currency || 'NGN') : 'N/A'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Current Period</label>
-                    <div className="flex items-center gap-1 mt-1">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">
-                        {subscription?.current_period_start && subscription?.current_period_end
-                          ? `${formatDate(subscription.current_period_start)} - ${formatDate(subscription.current_period_end)}`
-                          : 'N/A'
-                        }
-                      </span>
-                    </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Subscription Period</label>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">
+                      {profile?.subscription_start && profile?.subscription_end
+                        ? `${formatDate(profile.subscription_start)} - ${formatDate(profile.subscription_end)}`
+                        : 'N/A'
+                      }
+                    </span>
                   </div>
                 </div>
-              )}
+              </div>
 
               <div className="flex gap-4 pt-4">
                 <Button onClick={() => navigate('/pricing')}>
-                  {subscription?.is_legacy_user ? 'View Plans' : 'Upgrade Plan'}
+                  {isActive ? 'Upgrade Plan' : 'Activate Subscription'}
                 </Button>
-                {!subscription?.is_legacy_user && (
+                {isActive && (
                   <Button variant="outline">
                     Cancel Subscription
                   </Button>
@@ -225,7 +224,7 @@ export default function SubscriptionPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {transactions.length === 0 ? (
+              {payments.length === 0 ? (
                 <p className="text-muted-foreground text-center py-8">
                   No payment history available
                 </p>
@@ -241,20 +240,17 @@ export default function SubscriptionPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {transactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
+                    {payments.map((payment) => (
+                      <TableRow key={payment.id}>
                         <TableCell>
-                          {transaction.paid_at
-                            ? formatDate(transaction.paid_at)
-                            : formatDate(transaction.created_at)
-                          }
+                          {formatDate(payment.created_at)}
                         </TableCell>
                         <TableCell className="font-mono text-sm">
-                          {transaction.paystack_reference}
+                          {payment.reference}
                         </TableCell>
-                        <TableCell>{getPlanName(transaction.plan_type)}</TableCell>
-                        <TableCell>{formatCurrency(transaction.amount, transaction.currency || 'NGN')}</TableCell>
-                        <TableCell>{getStatusBadge(transaction.status)}</TableCell>
+                        <TableCell>{getPlanName(payment.plan)}</TableCell>
+                        <TableCell>{formatCurrency(payment.amount, payment.currency || 'NGN')}</TableCell>
+                        <TableCell>{getStatusBadge(payment.status)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
