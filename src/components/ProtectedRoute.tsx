@@ -1,4 +1,4 @@
-// TaxWiseWeb/src/components/ProtectedRoute.tsx
+// TaxWiseWeb/src/components/ProtectedRoute.tsx (FIXED)
 import { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,45 +16,86 @@ export default function ProtectedRoute({
 }: ProtectedRouteProps) {
   const { user, loading: authLoading } = useAuth();
   const location = useLocation();
-  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
 
   useEffect(() => {
     const checkSubscription = async () => {
       if (!user) {
         setCheckingSubscription(false);
+        setHasAccess(false);
         return;
       }
 
       try {
-        // Use profiles table (same as mobile app)
+        console.log('🔍 Checking subscription for user:', user.id);
+
+        // ✅ FIX: Use profiles table (same as mobile app and edge function)
         const { data, error } = await supabase
           .from('profiles')
-          .select('subscription_status, onboarding_status')
+          .select('subscription_status, subscription_end, onboarding_status')
           .eq('user_id', user.id)
           .maybeSingle();
 
+        console.log('📊 Profile data:', data);
+        console.log('❌ Profile error:', error);
+
         if (error) {
-          console.error('Error fetching subscription:', error);
-          setSubscriptionStatus('pending');
-        } else if (!data) {
-          console.log('No profile found, setting to pending');
-          setSubscriptionStatus('pending');
-        } else {
-          // Check subscription status from profiles table
-          const status = data.subscription_status || 'pending';
-          console.log('Profile subscription status:', status);
-          setSubscriptionStatus(status);
+          console.error('Error fetching profile:', error);
+          setHasAccess(false);
+          setCheckingSubscription(false);
+          return;
         }
+
+        if (!data) {
+          console.log('⚠️ No profile found for user');
+          setHasAccess(false);
+          setCheckingSubscription(false);
+          return;
+        }
+
+        // Check subscription status
+        const subscriptionStatus = data.subscription_status || 'pending';
+        const onboardingStatus = data.onboarding_status || 'pending_payment';
+        
+        console.log('📋 Subscription status:', subscriptionStatus);
+        console.log('📋 Onboarding status:', onboardingStatus);
+
+        // Check if subscription is active
+        let isActive = subscriptionStatus === 'active' && onboardingStatus === 'active';
+
+        // Also check if subscription hasn't expired
+        if (data.subscription_end && isActive) {
+          const endDate = new Date(data.subscription_end);
+          const now = new Date();
+          
+          if (now > endDate) {
+            console.log('⏰ Subscription expired');
+            isActive = false;
+            
+            // Update status in database
+            await supabase
+              .from('profiles')
+              .update({
+                subscription_status: 'expired',
+                onboarding_status: 'pending_payment',
+              })
+              .eq('user_id', user.id);
+          }
+        }
+
+        console.log('✅ Has access:', isActive);
+        setHasAccess(isActive);
+
       } catch (error) {
-        console.error('Subscription check error:', error);
-        setSubscriptionStatus('pending');
+        console.error('❌ Subscription check error:', error);
+        setHasAccess(false);
       } finally {
         setCheckingSubscription(false);
       }
     };
 
-    // Add a small delay to ensure auth state is fully loaded
+    // Small delay to ensure auth state is stable
     const timer = setTimeout(() => {
       checkSubscription();
     }, 100);
@@ -62,7 +103,7 @@ export default function ProtectedRoute({
     return () => clearTimeout(timer);
   }, [user]);
 
-  // Show loading spinner while checking auth or subscription
+  // Show loading while checking
   if (authLoading || checkingSubscription) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -74,15 +115,17 @@ export default function ProtectedRoute({
     );
   }
 
-  // Not authenticated - redirect to auth page
+  // Not authenticated - redirect to auth
   if (!user) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  // If route requires active subscription and user doesn't have one
-  if (requiresActiveSubscription && subscriptionStatus !== 'active') {
+  // No active subscription - redirect to pricing
+  if (requiresActiveSubscription && !hasAccess) {
+    console.log('🚫 Redirecting to pricing - no active subscription');
     return <Navigate to="/pricing" state={{ from: location }} replace />;
   }
 
+  // All checks passed
   return <>{children}</>;
 }
