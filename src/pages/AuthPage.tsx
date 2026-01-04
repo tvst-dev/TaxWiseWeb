@@ -64,8 +64,8 @@ export default function AuthPage() {
     {
       id: 'large_corporation',
       name: 'Large Corp',
-      price: '₦100.90',
-      rawPrice: 10000,
+      price: '₦49,999.90',
+      rawPrice: 4999990,
       description: 'For organizations',
       icon: <Building2 className="h-4 w-4" />
     },
@@ -130,16 +130,23 @@ export default function AuthPage() {
 
   const handlePayment = async (userId: string, userEmail: string) => {
     try {
+      // Verify session exists
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        toast({ title: "Account Created", description: "Please check your email to confirm." });
+        toast({ 
+          title: "Account Created", 
+          description: "Please check your email to confirm your account before payment." 
+        });
         return;
       }
 
       const plan = plans.find(p => p.id === selectedPlan);
-      if (!plan) throw new Error("Invalid plan");
+      if (!plan) {
+        throw new Error("Invalid plan selected");
+      }
 
+      // Prepare payment data with all required information
       const paymentBody: any = {
         email: userEmail,
         amount: plan.rawPrice,
@@ -149,27 +156,48 @@ export default function AuthPage() {
         userId: userId
       };
 
+      // Add company information for business plans
       if (selectedPlan !== 'individual') {
         paymentBody.companyName = companyName;
         paymentBody.companySize = companySize;
         paymentBody.jobTitle = jobTitle;
       }
 
+      console.log('Initiating payment with data:', paymentBody);
+
       const { data, error } = await supabase.functions.invoke('initialize-payment', {
         body: paymentBody
       });
 
-      if (error) throw new Error(error.message || "Payment initialization failed");
-      if (!data || !data.status) throw new Error("Invalid payment response");
+      if (error) {
+        console.error('Payment initialization error:', error);
+        throw new Error(error.message || "Payment initialization failed");
+      }
+
+      if (!data || !data.status) {
+        console.error('Payment response:', data);
+        throw new Error(data?.message || "Invalid payment response");
+      }
+
+      // Redirect to Paystack
       if (data.data?.authorization_url) {
         window.location.href = data.data.authorization_url;
       } else {
         throw new Error("Payment URL not received");
       }
+
     } catch (error: any) {
       console.error('Payment error:', error);
-      toast({ title: 'Payment Error', description: error.message, variant: 'destructive' });
-      setTimeout(() => navigate('/pricing'), 2000);
+      toast({ 
+        title: 'Payment Error', 
+        description: error.message || 'Failed to initialize payment. Please try again from the pricing page.', 
+        variant: 'destructive' 
+      });
+      
+      // Redirect to pricing page so user can try payment again
+      setTimeout(() => {
+        navigate('/pricing');
+      }, 2000);
     }
   };
 
