@@ -55,8 +55,9 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 40px;
+      font-size: 50px;
       color: white;
+      line-height: 1;
     }
 
     .error-icon {
@@ -68,8 +69,9 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 40px;
+      font-size: 50px;
       color: white;
+      line-height: 1;
     }
 
     h1 {
@@ -123,6 +125,7 @@
       font-weight: 600;
       transition: background 0.3s;
       margin-top: 20px;
+      cursor: pointer;
     }
 
     .btn:hover {
@@ -144,6 +147,20 @@
       font-size: 14px;
       color: #6b7280;
       margin-top: 10px;
+      font-weight: 500;
+    }
+
+    .debug-info {
+      background: #f3f4f6;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 20px 0;
+      text-align: left;
+      font-size: 12px;
+      color: #374151;
+      max-height: 200px;
+      overflow-y: auto;
     }
   </style>
 </head>
@@ -155,6 +172,7 @@
     <div id="status-text"></div>
     <div id="details" class="details" style="display:none;"></div>
     <div id="error-details" class="error-details" style="display:none;"></div>
+    <div id="debug-info" class="debug-info" style="display:none;"></div>
     <a href="/dashboard" id="dashboard-btn" class="btn" style="display:none;">Go to Dashboard</a>
     <a href="/pricing" id="pricing-btn" class="btn" style="display:none;">Return to Pricing</a>
   </div>
@@ -163,14 +181,32 @@
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
     // Initialize Supabase
-    const supabaseUrl = 'https://awxyikflylmdqtpjzfdd.supabase.co'; // Replace with your actual URL
-    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3eHlpa2ZseWxtZHF0cGp6ZmRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1OTk5NzAsImV4cCI6MjA3NTE3NTk3MH0.Cf0cp0iBYwnYTj1d3TSsqJKY-fq0GMY2DCvv9bBbYN4'; // Replace with your actual key
+    const supabaseUrl = 'https://awxyikflylmdqtpjzfdd.supabase.co';
+    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3eHlpa2ZseWxtZHF0cGp6ZmRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1OTk5NzAsImV4cCI6MjA3NTE3NTk3MH0.Cf0cp0iBYwnYTj1d3TSsqJKY-fq0GMY2DCvv9bBbYN4';
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+    // Debug mode (set to false in production)
+    const DEBUG = true;
+
+    function logDebug(message, data = null) {
+      console.log(message, data);
+      if (DEBUG && data) {
+        const debugDiv = document.getElementById('debug-info');
+        debugDiv.style.display = 'block';
+        debugDiv.innerHTML += `<div><strong>${message}</strong><br/><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+      }
+    }
 
     // Helper functions
     function showSuccess(message, details = {}) {
       document.getElementById('spinner').style.display = 'none';
-      document.getElementById('title').innerHTML = '<div class="success-icon">✓</div>Payment Successful!';
+      
+      // Create success icon container
+      const successHtml = `
+        <div class="success-icon">&#10003;</div>
+        <h1 style="color: #10b981; margin-top: 10px;">Payment Successful!</h1>
+      `;
+      document.getElementById('title').innerHTML = successHtml;
       document.getElementById('message').textContent = message;
       
       if (Object.keys(details).length > 0) {
@@ -186,7 +222,7 @@
       
       document.getElementById('dashboard-btn').style.display = 'inline-block';
       
-      // ✅ CRITICAL: Always redirect to dashboard after successful payment
+      // Auto redirect
       updateStatus('Redirecting to dashboard in 3 seconds...');
       setTimeout(() => {
         console.log('✅ Redirecting to dashboard...');
@@ -196,7 +232,13 @@
 
     function showError(message, errorDetails = null) {
       document.getElementById('spinner').style.display = 'none';
-      document.getElementById('title').innerHTML = '<div class="error-icon">✕</div>Payment Failed';
+      
+      // Create error icon container
+      const errorHtml = `
+        <div class="error-icon">&#10005;</div>
+        <h1 style="color: #ef4444; margin-top: 10px;">Payment Failed</h1>
+      `;
+      document.getElementById('title').innerHTML = errorHtml;
       document.getElementById('message').textContent = message;
       
       if (errorDetails) {
@@ -219,7 +261,7 @@
         const reference = urlParams.get('reference');
         const trxref = urlParams.get('trxref');
 
-        console.log('🔍 Payment Callback - Reference:', reference || trxref);
+        logDebug('🔍 Payment Callback Started', { reference, trxref });
 
         if (!reference && !trxref) {
           showError('No payment reference found. Please try again.');
@@ -229,20 +271,20 @@
         const paymentRef = reference || trxref;
         updateStatus('Verifying payment with Paystack...');
 
-        // ✅ STEP 1: Get current user session
+        // STEP 1: Get current user session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError || !session) {
-          console.error('❌ Session error:', sessionError);
+          logDebug('❌ Session error', sessionError);
           showError('Session expired. Please log in and try again.');
           setTimeout(() => window.location.href = '/auth', 2000);
           return;
         }
 
-        console.log('✅ User session found:', session.user.id);
+        logDebug('✅ User session found', { userId: session.user.id });
         updateStatus('Verifying payment...');
 
-        // ✅ STEP 2: Call edge function to verify payment
+        // STEP 2: Call edge function to verify payment
         const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-payment', {
           body: { reference: paymentRef },
           headers: {
@@ -250,57 +292,62 @@
           }
         });
 
-        console.log('📊 Verify response:', verifyData);
+        logDebug('📊 Verify response', verifyData);
 
         if (verifyError) {
-          console.error('❌ Verification error:', verifyError);
+          logDebug('❌ Verification error', verifyError);
           showError('Payment verification failed', verifyError.message);
           return;
         }
 
         if (!verifyData || !verifyData.status) {
-          console.error('❌ Verification failed:', verifyData);
+          logDebug('❌ Verification failed', verifyData);
           showError(verifyData?.message || 'Payment verification failed. Please contact support.');
           return;
         }
 
-        // ✅ STEP 3: Check if payment was successful
-        const paymentStatus = verifyData.data?.status || verifyData.status;
+        // STEP 3: Check payment status - try multiple paths
+        let paymentStatus = null;
         
-        console.log('💳 Payment status from Paystack:', paymentStatus);
-        console.log('💳 Full payment data:', verifyData);
+        // Try different paths where status might be
+        if (verifyData.data?.status) {
+          paymentStatus = verifyData.data.status;
+        } else if (verifyData.status === true && verifyData.data) {
+          // Paystack returns { status: true, data: { ... } } on success
+          paymentStatus = 'success';
+        } else if (verifyData.status) {
+          paymentStatus = verifyData.status;
+        }
+
+        logDebug('💳 Payment status', { 
+          extracted: paymentStatus, 
+          rawData: verifyData.data,
+          rawStatus: verifyData.status 
+        });
         
         if (paymentStatus !== 'success') {
-          console.log('⚠️ Payment not successful:', paymentStatus);
-          showError(`Payment ${paymentStatus}. Please try again.`);
+          logDebug('⚠️ Payment not successful', paymentStatus);
+          showError(`Payment ${paymentStatus || 'failed'}. Please try again.`);
           return;
         }
 
-        console.log('✅ Payment successful!');
+        logDebug('✅ Payment verified as successful!');
         updateStatus('Activating your subscription...');
 
-        // ✅ STEP 4: Extract metadata from Paystack response
-        // Try multiple paths where metadata might be
+        // STEP 4: Extract metadata
         const metadata = verifyData.data?.metadata || verifyData.metadata || {};
         const customFields = verifyData.data?.custom_fields || verifyData.custom_fields || [];
         
-        // Try to get plan from metadata or custom_fields
         let plan = metadata.plan;
         if (!plan && customFields.length > 0) {
           const planField = customFields.find(f => f.variable_name === 'plan');
           plan = planField?.value;
         }
         
-        console.log('📋 Payment metadata:', metadata);
-        console.log('📋 Custom fields:', customFields);
-        console.log('📋 Selected plan:', plan);
+        logDebug('📋 Metadata extracted', { plan, metadata, customFields });
 
         if (!plan) {
-          console.error('❌ Missing plan in payment response');
-          console.error('Full verify data:', JSON.stringify(verifyData, null, 2));
-          
-          // ✅ Don't fail if we can get user's current plan from database
-          console.log('⚠️ Attempting to use plan from user profile...');
+          logDebug('⚠️ Plan not in metadata, checking profile...');
           
           const { data: profileData } = await supabase
             .from('profiles')
@@ -310,39 +357,31 @@
           
           if (profileData?.subscription_plan) {
             plan = profileData.subscription_plan;
-            console.log('✅ Using plan from profile:', plan);
+            logDebug('✅ Using plan from profile', plan);
           } else {
             showError('Payment successful but plan information is missing. Please contact support with reference: ' + paymentRef);
             return;
           }
         }
 
-        // ✅ STEP 5: Update profile with subscription details
+        // STEP 5: Update profile
         const updateData = {
           subscription_status: 'active',
           subscription_plan: plan,
           onboarding_status: 'active',
           subscription_start: new Date().toISOString(),
-          subscription_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+          subscription_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           payment_reference: paymentRef,
           updated_at: new Date().toISOString()
         };
 
-        // ✅ Add company details if present in metadata
-        if (metadata.company_name) {
-          updateData.company_name = metadata.company_name;
-        }
-        if (metadata.company_size) {
-          updateData.company_size = metadata.company_size;
-        }
-        if (metadata.job_title) {
-          updateData.job_title = metadata.job_title;
-        }
-        if (metadata.is_company_rep !== undefined) {
-          updateData.is_company_rep = metadata.is_company_rep;
-        }
+        // Add company details if present
+        if (metadata.company_name) updateData.company_name = metadata.company_name;
+        if (metadata.company_size) updateData.company_size = metadata.company_size;
+        if (metadata.job_title) updateData.job_title = metadata.job_title;
+        if (metadata.is_company_rep !== undefined) updateData.is_company_rep = metadata.is_company_rep;
 
-        console.log('📝 Updating profile with:', updateData);
+        logDebug('📝 Updating profile', updateData);
 
         const { error: updateError } = await supabase
           .from('profiles')
@@ -350,22 +389,25 @@
           .eq('user_id', session.user.id);
 
         if (updateError) {
-          console.error('❌ Profile update error:', updateError);
+          logDebug('❌ Profile update error', updateError);
           showError('Payment successful but failed to activate subscription. Please contact support.', updateError.message);
           return;
         }
 
-        console.log('✅ Profile updated successfully!');
+        logDebug('✅ Profile updated successfully!');
 
-        // ✅ Success!
+        // Calculate amount
+        const amount = verifyData.data?.amount ? (verifyData.data.amount / 100) : 0;
+
+        // Success!
         showSuccess('Your subscription has been activated!', {
           'Plan': plan.replace('_', ' ').toUpperCase(),
-          'Amount': `₦${(verifyData.data.amount / 100).toLocaleString()}`,
+          'Amount': `₦${amount.toLocaleString()}`,
           'Reference': paymentRef
         });
 
       } catch (error) {
-        console.error('❌ Payment verification error:', error);
+        logDebug('❌ Unexpected error', error);
         showError('An error occurred while processing your payment', error.message);
       }
     }
